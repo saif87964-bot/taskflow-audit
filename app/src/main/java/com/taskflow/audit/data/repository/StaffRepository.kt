@@ -37,4 +37,41 @@ class StaffRepository(private val db: FirebaseFirestore = FirebaseFirestore.getI
             .get().await()
             .documents.firstOrNull()
             ?.toObject(StaffDocument::class.java)
+
+    /**
+     * Creates the Firestore staff document for a newly provisioned Firebase Auth user.
+     */
+    suspend fun createStaffDoc(
+        uid: String,
+        shortId: String,
+        fullName: String,
+        role: String,
+        colorHex: String,
+        isAdmin: Boolean
+    ) {
+        val doc = StaffDocument(
+            uid = uid,
+            shortId = shortId.lowercase(),
+            fullName = fullName,
+            role = role,
+            initials = shortId.uppercase().take(2),
+            colorHex = colorHex,
+            isAdmin = isAdmin,
+            email = "${shortId.lowercase()}@taskflow.audit",
+            pendingPinReset = false
+        )
+        db.collection(Collections.STAFF).document(uid).set(doc).await()
+    }
+
+    /** Flags the staff member as needing to reset their PIN on next login. */
+    suspend fun setPendingPinReset(uid: String) {
+        db.collection(Collections.STAFF).document(uid)
+            .update("pendingPinReset", true).await()
+    }
+
+    /** Clears the pending PIN reset flag after the user has set a new PIN. */
+    suspend fun clearPendingPinReset(uid: String) {
+        db.collection(Collections.STAFF).document(uid)
+            .update("pendingPinReset", false).await()
+    }
 }

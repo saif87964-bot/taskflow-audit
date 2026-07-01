@@ -1,50 +1,187 @@
 package com.taskflow.audit.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.taskflow.audit.data.mock.Engagement
-import com.taskflow.audit.data.mock.EngagementType
-import com.taskflow.audit.data.mock.MockData
-import com.taskflow.audit.ui.components.WorkloadProgressBar
-import com.taskflow.audit.ui.theme.CheckedInGreen
-import com.taskflow.audit.ui.theme.NonBillableGray
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.taskflow.audit.data.model.EngagementDocument
+import com.taskflow.audit.ui.viewmodel.AdminEngagementViewModel
+
+private val colorPresets = listOf(
+    "#1565C0", "#00695C", "#6A1B9A", "#E65100",
+    "#37474F", "#C62828", "#00838F", "#F57F17"
+)
+
+private val engagementTypes = listOf("AUDIT", "TAX", "ADVISORY", "ADMIN")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminEngagementsScreen(onBack: () -> Unit) {
-    val engagements = MockData.engagements
-    val billable = engagements.filter { it.type != EngagementType.ADMIN }
-    val internal = engagements.filter { it.type == EngagementType.ADMIN }
+fun AdminEngagementsScreen(
+    vm: AdminEngagementViewModel,
+    onBack: () -> Unit
+) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showAddSheet by remember { mutableStateOf(false) }
+    var selectedEngagement by remember { mutableStateOf<EngagementDocument?>(null) }
+    var showOptionsSheet by remember { mutableStateOf(false) }
+    var showEditSheet by remember { mutableStateOf(false) }
+    var showArchiveConfirm by remember { mutableStateOf(false) }
 
-    val totalBillableHours = MockData.weeklyEngagementHours
-        .filterKeys { id -> engagements.find { it.id == id }?.type != EngagementType.ADMIN } != null
+    LaunchedEffect(state.successMessage) {
+        state.successMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.clearMessages()
+        }
+    }
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.clearMessages()
+        }
+    }
+
+    val billable = state.engagements.filter { it.type != "ADMIN" }
+    val internal = state.engagements.filter { it.type == "ADMIN" }
+    val totalBudgetHours = state.engagements.sumOf { it.budgetHours }
+
+    // Add sheet
+    if (showAddSheet) {
+        val addSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showAddSheet = false },
+            sheetState = addSheetState
+        ) {
+            AddEngagementSheet(
+                onDismiss = { showAddSheet = false },
+                onConfirm = { code, clientName, type, colorHex, budgetHours ->
+                    vm.createEngagement(code, clientName, type, colorHex, budgetHours)
+                    showAddSheet = false
+                }
+            )
+        }
+    }
+
+    // Options sheet (edit/archive)
+    if (showOptionsSheet && selectedEngagement != null) {
+        val optSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showOptionsSheet = false },
+            sheetState = optSheetState
+        ) {
+            Column(modifier = Modifier.padding(16.dp).navigationBarsPadding()) {
+                Text("Options", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
+                TextButton(
+                    onClick = {
+                        showOptionsSheet = false
+                        showEditSheet = true
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Edit Engagement")
+                }
+                TextButton(
+                    onClick = {
+                        showOptionsSheet = false
+                        showArchiveConfirm = true
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Archive Engagement", color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+
+    // Edit sheet
+    if (showEditSheet && selectedEngagement != null) {
+        val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showEditSheet = false },
+            sheetState = editSheetState
+        ) {
+            EditEngagementSheet(
+                engagement = selectedEngagement!!,
+                onDismiss = { showEditSheet = false },
+                onUpdate = { code, clientName, type, colorHex, budgetHours ->
+                    vm.updateEngagement(selectedEngagement!!.id, code, clientName, type, colorHex, budgetHours)
+                    showEditSheet = false
+                },
+                onArchive = {
+                    showEditSheet = false
+                    showArchiveConfirm = true
+                }
+            )
+        }
+    }
+
+    // Archive confirm dialog
+    if (showArchiveConfirm && selectedEngagement != null) {
+        AlertDialog(
+            onDismissRequest = { showArchiveConfirm = false },
+            title = { Text("Archive Engagement?") },
+            text = { Text("${selectedEngagement!!.clientName} will be marked inactive and hidden from active lists.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.archiveEngagement(selectedEngagement!!.id)
+                        showArchiveConfirm = false
+                        selectedEngagement = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Archive") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showArchiveConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Engagements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                title = {
+                    Text("Engagements", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
                 },
                 actions = {
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = { showAddSheet = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Add engagement")
                     }
                 }
             )
         }
     ) { padding ->
+        if (state.isLoading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -54,7 +191,7 @@ fun AdminEngagementsScreen(onBack: () -> Unit) {
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // Summary
+            // Summary card
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -66,13 +203,9 @@ fun AdminEngagementsScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SummaryCol("Engagements", "${billable.size}")
+                        EngSummaryCol("Billable", "${billable.size}")
                         VerticalDivider(modifier = Modifier.height(36.dp))
-                        val totalHours = MockData.weeklyEngagementHours.values.sum()
-                        SummaryCol("Total Hrs (wk)", "%.0fh".format(totalHours))
-                        VerticalDivider(modifier = Modifier.height(36.dp))
-                        val totalBudget = MockData.weeklyBudgetHours.values.sum()
-                        SummaryCol("Budget Hrs (wk)", "%.0fh".format(totalBudget))
+                        EngSummaryCol("Budget Hrs", "${totalBudgetHours}h")
                     }
                 }
             }
@@ -86,7 +219,13 @@ fun AdminEngagementsScreen(onBack: () -> Unit) {
                 )
             }
             items(billable) { eng ->
-                EngagementCard(engagement = eng)
+                EngagementFirestoreCard(
+                    engagement = eng,
+                    onClick = {
+                        selectedEngagement = eng
+                        showOptionsSheet = true
+                    }
+                )
             }
 
             // Internal
@@ -99,7 +238,13 @@ fun AdminEngagementsScreen(onBack: () -> Unit) {
                 )
             }
             items(internal) { eng ->
-                EngagementCard(engagement = eng)
+                EngagementFirestoreCard(
+                    engagement = eng,
+                    onClick = {
+                        selectedEngagement = eng
+                        showOptionsSheet = true
+                    }
+                )
             }
 
             item { Spacer(Modifier.height(24.dp)) }
@@ -108,73 +253,269 @@ fun AdminEngagementsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun EngagementCard(engagement: Engagement) {
-    val hours = MockData.weeklyEngagementHours[engagement.id] ?: 0f
-    val budget = MockData.weeklyBudgetHours[engagement.id] ?: 0f
-    val staffOnEng = MockData.getStaffStatuses()
-        .filter { it.currentEngagement?.id == engagement.id }
+private fun EngagementFirestoreCard(engagement: EngagementDocument, onClick: () -> Unit) {
+    val dotColor = try {
+        Color(android.graphics.Color.parseColor(engagement.colorHex))
+    } catch (_: Exception) { Color(0xFF00897B) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    engagement.clientName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        engagement.clientName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        engagement.code + " • " + engagement.type.name,
+                        engagement.code,
                         style = MaterialTheme.typography.labelSmall,
-                        color = engagement.color
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-                if (staffOnEng.isNotEmpty()) {
-                    SurfaceBadge(
-                        text = "${staffOnEng.size} active",
-                        color = CheckedInGreen
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = dotColor.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            engagement.type,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = dotColor,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            WorkloadProgressBar(
-                label = "This week",
-                hoursUsed = hours,
-                hoursBudget = budget,
-                color = if (engagement.type == EngagementType.ADMIN) NonBillableGray else engagement.color
+            Text(
+                "${engagement.budgetHours}h",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
 }
 
 @Composable
-private fun SurfaceBadge(text: String, color: androidx.compose.ui.graphics.Color) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = color.copy(alpha = 0.12f)
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-        )
+private fun EngSummaryCol(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
     }
 }
 
 @Composable
-private fun SummaryCol(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+private fun AddEngagementSheet(
+    onDismiss: () -> Unit,
+    onConfirm: (code: String, clientName: String, type: String, colorHex: String, budgetHours: Int) -> Unit
+) {
+    var clientName by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf("AUDIT") }
+    var budgetHoursText by remember { mutableStateOf("20") }
+    var selectedColor by remember { mutableStateOf(colorPresets[0]) }
+
+    // Auto-suggest code from clientName initials
+    LaunchedEffect(clientName) {
+        if (code.isEmpty() || code == clientName.take(clientName.length - 1)
+                .split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("")) {
+            code = clientName.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("").take(4)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .navigationBarsPadding()
+    ) {
+        Text("Add Engagement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = clientName,
+            onValueChange = { clientName = it },
+            label = { Text("Client Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = code,
+            onValueChange = { code = it.uppercase().take(6) },
+            label = { Text("Code") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+
+        Text("Type", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(engagementTypes) { t ->
+                FilterChip(
+                    selected = selectedType == t,
+                    onClick = { selectedType = t },
+                    label = { Text(t) }
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = budgetHoursText,
+            onValueChange = { budgetHoursText = it.filter { c -> c.isDigit() } },
+            label = { Text("Budget Hours") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+
+        Text("Color", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            colorPresets.forEach { hex ->
+                val c = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Gray }
+                Box(
+                    modifier = Modifier
+                        .size(if (selectedColor == hex) 34.dp else 28.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .clickable { selectedColor = hex }
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+            Button(
+                onClick = {
+                    val hours = budgetHoursText.toIntOrNull() ?: 20
+                    onConfirm(code, clientName, selectedType, selectedColor, hours)
+                },
+                modifier = Modifier.weight(1f),
+                enabled = clientName.isNotBlank() && code.isNotBlank()
+            ) { Text("Create") }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun EditEngagementSheet(
+    engagement: EngagementDocument,
+    onDismiss: () -> Unit,
+    onUpdate: (code: String, clientName: String, type: String, colorHex: String, budgetHours: Int) -> Unit,
+    onArchive: () -> Unit
+) {
+    var clientName by remember { mutableStateOf(engagement.clientName) }
+    var code by remember { mutableStateOf(engagement.code) }
+    var selectedType by remember { mutableStateOf(engagement.type) }
+    var budgetHoursText by remember { mutableStateOf(engagement.budgetHours.toString()) }
+    var selectedColor by remember { mutableStateOf(engagement.colorHex) }
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .navigationBarsPadding()
+    ) {
+        Text("Edit Engagement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = clientName,
+            onValueChange = { clientName = it },
+            label = { Text("Client Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = code,
+            onValueChange = { code = it.uppercase().take(6) },
+            label = { Text("Code") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+
+        Text("Type", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(engagementTypes) { t ->
+                FilterChip(
+                    selected = selectedType == t,
+                    onClick = { selectedType = t },
+                    label = { Text(t) }
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = budgetHoursText,
+            onValueChange = { budgetHoursText = it.filter { c -> c.isDigit() } },
+            label = { Text("Budget Hours") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(Modifier.height(10.dp))
+
+        Text("Color", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            colorPresets.forEach { hex ->
+                val c = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Gray }
+                Box(
+                    modifier = Modifier
+                        .size(if (selectedColor == hex) 34.dp else 28.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .clickable { selectedColor = hex }
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+            Button(
+                onClick = {
+                    val hours = budgetHoursText.toIntOrNull() ?: 20
+                    onUpdate(code, clientName, selectedType, selectedColor, hours)
+                },
+                modifier = Modifier.weight(1f),
+                enabled = clientName.isNotBlank() && code.isNotBlank()
+            ) { Text("Save") }
+        }
+        Spacer(Modifier.height(8.dp))
+        TextButton(
+            onClick = onArchive,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+        ) { Text("Archive Engagement") }
+        Spacer(Modifier.height(16.dp))
     }
 }

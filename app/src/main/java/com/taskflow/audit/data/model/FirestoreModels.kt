@@ -14,7 +14,8 @@ data class StaffDocument(
     val initials: String = "",
     val colorHex: String = "#1565C0",
     val isAdmin: Boolean = false,
-    val email: String = ""
+    val email: String = "",
+    val pendingPinReset: Boolean = false
 )
 
 // ─── Engagement ─────────────────────────────────────────────────────────────
@@ -50,8 +51,8 @@ data class TaskDocument(
     val description: String = "",
     val engagementId: String = "",
     val assigneeId: String = "",
-    val priority: String = "MEDIUM",     // HIGH | MEDIUM | LOW
-    val status: String = "PENDING",      // PENDING | IN_PROGRESS | DONE
+    val priority: String = "MEDIUM",
+    val status: String = "PENDING",
     val dueDate: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null,
@@ -65,7 +66,7 @@ data class LogEntryDocument(
     val staffId: String = "",
     val engagementId: String = "",
     val note: String = "",
-    val category: String = "OBSERVATION", // OBSERVATION | FINDING | MEETING | ADMIN
+    val category: String = "OBSERVATION",
     @ServerTimestamp val createdAt: Timestamp? = null
 )
 

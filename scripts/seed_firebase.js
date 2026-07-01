@@ -14,19 +14,22 @@
  *   3. Set your Firebase project ID below
  */
 
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getFirestore } = require('firebase-admin/firestore');
+const path = require('path');
 
-const PROJECT_ID = 'YOUR_FIREBASE_PROJECT_ID'; // ← replace this
+const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+  path.join(__dirname, 'service-account.json');
 
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
-  projectId: PROJECT_ID
-});
+const serviceAccount = require(SERVICE_ACCOUNT_PATH);
 
-const auth = admin.auth();
-const db = admin.firestore();
+initializeApp({ credential: cert(serviceAccount) });
 
-const DEFAULT_PIN = '1234'; // Staff will be prompted to change this on first login
+const auth = getAuth();
+const db = getFirestore();
+
+const DEFAULT_PIN = '123400'; // 4-digit PIN "1234" padded to 6 chars for Firebase Auth minimum
 
 const staff = [
   { shortId: 'im', fullName: 'Imtiaz M',  role: 'Senior Auditor',  initials: 'IM', colorHex: '#1565C0', isAdmin: false },

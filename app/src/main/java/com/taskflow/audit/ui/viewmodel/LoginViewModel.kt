@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.taskflow.audit.data.AppRepositories
 import com.taskflow.audit.data.repository.AuthResult
+import com.taskflow.audit.data.repository.StaffRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,11 +13,12 @@ import kotlinx.coroutines.launch
 data class LoginUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val navigateToStaffHome: String? = null,   // staffUid
-    val navigateToAdmin: String? = null,         // adminUid
+    val navigateToStaffHome: String? = null,
+    val navigateToAdmin: String? = null,
+    val navigateToPinChange: String? = null,
     val requiresBiometric: Boolean = false,
     val savedShortId: String? = null,
-    val offerBiometricEnroll: Boolean = false,  // show "enable fingerprint?" dialog after PIN login
+    val offerBiometricEnroll: Boolean = false,
     val pendingUid: String? = null,
     val pendingIsAdmin: Boolean = false
 )
@@ -27,7 +29,6 @@ class LoginViewModel : ViewModel() {
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     init {
-        // Check if a returning user can use biometric
         val auth = AppRepositories.auth
         if (auth.isLoggedIn && auth.isBiometricEnabled()) {
             _uiState.value = _uiState.value.copy(
@@ -43,9 +44,21 @@ class LoginViewModel : ViewModel() {
             when (val result = AppRepositories.auth.signIn(shortId, pin)) {
                 is AuthResult.Success -> {
                     val uid = result.user.uid
+
+                    // Check if this user has a pending PIN reset
+                    val staffRepo = StaffRepository()
+                    val staffDoc = staffRepo.getStaffByUid(uid)
+                    if (staffDoc?.pendingPinReset == true) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            navigateToPinChange = uid,
+                            pendingIsAdmin = result.isAdmin
+                        )
+                        return@launch
+                    }
+
                     val biometricNotYetEnabled = !AppRepositories.auth.isBiometricEnabled()
                     if (biometricNotYetEnabled) {
-                        // Offer biometric enrollment — screen will show dialog if hardware available
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             offerBiometricEnroll = true,
@@ -72,7 +85,6 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             val valid = AppRepositories.auth.refreshToken()
             if (!valid) {
-                // Token expired — fall back to PIN
                 _uiState.value = _uiState.value.copy(requiresBiometric = false)
                 return@launch
             }
@@ -114,7 +126,8 @@ class LoginViewModel : ViewModel() {
     fun clearNavigation() {
         _uiState.value = _uiState.value.copy(
             navigateToStaffHome = null,
-            navigateToAdmin = null
+            navigateToAdmin = null,
+            navigateToPinChange = null
         )
     }
 }

@@ -36,6 +36,9 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings/{isAdmin}/{uid}") {
         fun createRoute(isAdmin: Boolean, uid: String) = "settings/$isAdmin/$uid"
     }
+    object SetNewPin : Screen("set_new_pin/{uid}/{isAdmin}") {
+        fun createRoute(uid: String, isAdmin: Boolean) = "set_new_pin/$uid/$isAdmin"
+    }
 }
 
 @Composable
@@ -66,6 +69,11 @@ fun TaskFlowNavHost(
                         navController.navigate(Screen.StaffHome.createRoute(uid)) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
+                    }
+                },
+                onPinChange = { uid, isAdmin ->
+                    navController.navigate(Screen.SetNewPin.createRoute(uid, isAdmin)) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             )
@@ -144,11 +152,13 @@ fun TaskFlowNavHost(
             arguments = listOf(navArgument("staffUid") { type = NavType.StringType })
         ) { back ->
             val staffUid = back.arguments?.getString("staffUid") ?: return@composable
-            AdminStaffDetailScreen(staffId = staffUid, onBack = { navController.popBackStack() })
+            val vm: AdminStaffDetailViewModel = viewModel(factory = AdminStaffDetailViewModel.Factory(staffUid))
+            AdminStaffDetailScreen(vm = vm, onBack = { navController.popBackStack() })
         }
 
         composable(Screen.AdminEngagements.route) {
-            AdminEngagementsScreen(onBack = { navController.popBackStack() })
+            val vm: AdminEngagementViewModel = viewModel(factory = AdminEngagementViewModel.Factory())
+            AdminEngagementsScreen(vm = vm, onBack = { navController.popBackStack() })
         }
 
         composable(
@@ -162,6 +172,26 @@ fun TaskFlowNavHost(
                 onBack = { navController.popBackStack() },
                 currentTheme = themeMode,
                 onThemeChange = onThemeChange
+            )
+        }
+
+        composable(
+            route = Screen.SetNewPin.route,
+            arguments = listOf(
+                navArgument("uid") { type = NavType.StringType },
+                navArgument("isAdmin") { type = NavType.BoolType }
+            )
+        ) { back ->
+            val uid = back.arguments?.getString("uid") ?: return@composable
+            val isAdmin = back.arguments?.getBoolean("isAdmin") ?: false
+            SetNewPinScreen(
+                uid = uid,
+                isAdmin = isAdmin,
+                onComplete = {
+                    val dest = if (isAdmin) Screen.AdminDashboard.createRoute(uid)
+                               else Screen.StaffHome.createRoute(uid)
+                    navController.navigate(dest) { popUpTo(0) { inclusive = true } }
+                }
             )
         }
     }

@@ -46,6 +46,7 @@ private val staffList = listOf(
 @Composable
 fun LoginScreen(
     onLogin: (staffUid: String, isAdmin: Boolean) -> Unit,
+    onPinChange: (uid: String, isAdmin: Boolean) -> Unit,
     vm: LoginViewModel = viewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
@@ -61,6 +62,14 @@ fun LoginScreen(
         state.navigateToAdmin?.let { uid ->
             vm.clearNavigation()
             onLogin(uid, true)
+        }
+    }
+
+    // Navigate to PIN change when flagged
+    LaunchedEffect(state.navigateToPinChange) {
+        state.navigateToPinChange?.let { uid ->
+            vm.clearNavigation()
+            onPinChange(uid, state.pendingIsAdmin)
         }
     }
 

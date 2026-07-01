@@ -18,7 +18,10 @@ data class AdminDashboardState(
     val activeSessions: List<TimeSessionDocument> = emptyList(),
     val engagements: List<EngagementDocument> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val createStaffSuccess: Boolean = false,
+    val actionError: String? = null,
+    val resetPinSuccess: String? = null
 ) {
     val checkedInCount: Int get() = activeSessions.map { it.staffId }.distinct().size
     val notLoggedToday: List<StaffDocument> get() =
@@ -46,6 +49,38 @@ class AdminViewModel(private val adminUid: String) : ViewModel() {
                 )
             }.collect {}
         }
+    }
+
+    fun createStaff(shortId: String, fullName: String, role: String, colorHex: String, isAdmin: Boolean) {
+        viewModelScope.launch {
+            try {
+                val uid = AppRepositories.auth.createStaff(shortId, fullName, role, colorHex, isAdmin)
+                AppRepositories.staff.createStaffDoc(uid, shortId, fullName, role, colorHex, isAdmin)
+                _state.value = _state.value.copy(createStaffSuccess = true)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(actionError = "Failed to create staff: ${e.message}")
+            }
+        }
+    }
+
+    fun resetStaffPin(uid: String) {
+        viewModelScope.launch {
+            try {
+                AppRepositories.staff.setPendingPinReset(uid)
+                val name = _state.value.staffList.find { it.uid == uid }?.fullName ?: "Staff"
+                _state.value = _state.value.copy(resetPinSuccess = name)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(actionError = "Failed to reset PIN: ${e.message}")
+            }
+        }
+    }
+
+    fun clearActionResult() {
+        _state.value = _state.value.copy(
+            createStaffSuccess = false,
+            actionError = null,
+            resetPinSuccess = null
+        )
     }
 
     fun clearError() = _state.value.let { _state.value = it.copy(error = null) }

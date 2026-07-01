@@ -16,6 +16,9 @@ import com.taskflow.audit.security.EncryptedPrefs
  */
 object AppRepositories {
 
+    lateinit var appContext: android.content.Context
+        private set
+
     lateinit var auth: AuthRepository
         private set
 
@@ -35,6 +38,7 @@ object AppRepositories {
         private set
 
     fun init(context: Context) {
+        appContext = context.applicationContext
         EncryptedPrefs.init(context)
         auth = AuthRepository(FirebaseAuth.getInstance())
         staff = StaffRepository()

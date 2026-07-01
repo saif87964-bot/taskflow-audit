@@ -5,9 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,6 +32,16 @@ import com.taskflow.audit.ui.theme.WarningAmber
 import com.taskflow.audit.ui.viewmodel.AdminViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+
+private val dashboardColorPresets = listOf(
+    "#1565C0", "#00695C", "#6A1B9A", "#E65100",
+    "#37474F", "#C62828", "#00838F", "#F57F17"
+)
+
+private val staffRoleOptions = listOf(
+    "Senior Auditor", "Audit Manager", "Auditor",
+    "Tax Consultant", "Partner", "Associate", "Administrator"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,10 +56,48 @@ fun AdminDashboardScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val today = SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(Date())
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showAddStaffSheet by remember { mutableStateOf(false) }
 
     val notLoggedAlerts = state.notLoggedToday.map { "${it.fullName} has not logged in today" }
 
+    LaunchedEffect(state.createStaffSuccess) {
+        if (state.createStaffSuccess) {
+            showAddStaffSheet = false
+            snackbarHostState.showSnackbar("Staff account created. Default PIN: 1234")
+            vm.clearActionResult()
+        }
+    }
+    LaunchedEffect(state.actionError) {
+        state.actionError?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.clearActionResult()
+        }
+    }
+    LaunchedEffect(state.resetPinSuccess) {
+        state.resetPinSuccess?.let {
+            snackbarHostState.showSnackbar("$it PIN reset to 1234")
+            vm.clearActionResult()
+        }
+    }
+
+    if (showAddStaffSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showAddStaffSheet = false },
+            sheetState = sheetState
+        ) {
+            AddStaffSheet(
+                onDismiss = { showAddStaffSheet = false },
+                onConfirm = { shortId, fullName, role, colorHex, isAdmin ->
+                    vm.createStaff(shortId, fullName, role, colorHex, isAdmin)
+                }
+            )
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -63,6 +114,11 @@ fun AdminDashboardScreen(
                     IconButton(onClick = onLogout) { Icon(Icons.Default.ExitToApp, "Logout") }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddStaffSheet = true }) {
+                Icon(Icons.Default.PersonAdd, contentDescription = "Add Staff")
+            }
         }
     ) { padding ->
         if (state.isLoading) {
@@ -136,11 +192,12 @@ fun AdminDashboardScreen(
                     staff = staffDoc,
                     activeSession = activeSession,
                     engagementName = engagementName,
-                    onClick = { onNavigateToStaffDetail(staffDoc.uid) }
+                    onClick = { onNavigateToStaffDetail(staffDoc.uid) },
+                    onResetPin = { vm.resetStaffPin(staffDoc.uid) }
                 )
             }
 
-            item { Spacer(Modifier.height(24.dp)) }
+            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 }
@@ -150,12 +207,14 @@ private fun FirestoreStaffRow(
     staff: StaffDocument,
     activeSession: TimeSessionDocument?,
     engagementName: String?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onResetPin: () -> Unit
 ) {
     val isCheckedIn = activeSession != null
     val avatarColor = try {
         Color(android.graphics.Color.parseColor(staff.colorHex))
     } catch (_: Exception) { Color(0xFF1565C0) }
+    var showMenu by remember { mutableStateOf(false) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -212,6 +271,33 @@ private fun FirestoreStaffRow(
                 fontWeight = FontWeight.SemiBold,
                 color = if (isCheckedIn) CheckedInGreen else MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "More options",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Reset PIN") },
+                        onClick = {
+                            showMenu = false
+                            onResetPin()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Lock, null, modifier = Modifier.size(18.dp)) }
+                    )
+                }
+            }
         }
     }
 }
@@ -238,5 +324,132 @@ private fun AdminStatCard(
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddStaffSheet(
+    onDismiss: () -> Unit,
+    onConfirm: (shortId: String, fullName: String, role: String, colorHex: String, isAdmin: Boolean) -> Unit
+) {
+    var fullName by remember { mutableStateOf("") }
+    var shortId by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf(staffRoleOptions[0]) }
+    var isAdmin by remember { mutableStateOf(false) }
+    var selectedColor by remember { mutableStateOf(dashboardColorPresets[0]) }
+    var roleExpanded by remember { mutableStateOf(false) }
+
+    // Auto-suggest shortId from first two letters of first name
+    LaunchedEffect(fullName) {
+        val suggested = fullName.trim().split(" ")
+            .mapNotNull { it.firstOrNull()?.lowercaseChar() }
+            .take(2)
+            .joinToString("")
+        if (suggested.isNotEmpty()) {
+            shortId = suggested
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .navigationBarsPadding()
+    ) {
+        Text("Add Staff Member", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = fullName,
+            onValueChange = { fullName = it },
+            label = { Text("Full Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                capitalization = KeyboardCapitalization.Words
+            )
+        )
+        Spacer(Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = shortId,
+            onValueChange = { if (it.length <= 3) shortId = it.lowercase() },
+            label = { Text("Short ID (max 3 chars)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            supportingText = { Text("Used as login ID, e.g. 'im' for Imtiaz M") }
+        )
+        Spacer(Modifier.height(10.dp))
+
+        ExposedDropdownMenuBox(
+            expanded = roleExpanded,
+            onExpandedChange = { roleExpanded = !roleExpanded }
+        ) {
+            OutlinedTextField(
+                value = selectedRole,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Role") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = roleExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = roleExpanded,
+                onDismissRequest = { roleExpanded = false }
+            ) {
+                staffRoleOptions.forEach { role ->
+                    DropdownMenuItem(
+                        text = { Text(role) },
+                        onClick = {
+                            selectedRole = role
+                            roleExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text("Admin Access", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text("Can access admin dashboard", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = isAdmin, onCheckedChange = { isAdmin = it })
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Text("Color", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(dashboardColorPresets) { hex ->
+                val c = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Gray }
+                Box(
+                    modifier = Modifier
+                        .size(if (selectedColor == hex) 34.dp else 28.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .clickable { selectedColor = hex }
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+            Button(
+                onClick = { onConfirm(shortId, fullName, selectedRole, selectedColor, isAdmin) },
+                modifier = Modifier.weight(1f),
+                enabled = fullName.isNotBlank() && shortId.isNotBlank()
+            ) { Text("Create Staff") }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }

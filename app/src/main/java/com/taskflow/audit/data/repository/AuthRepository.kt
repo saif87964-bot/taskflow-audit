@@ -1,7 +1,9 @@
 package com.taskflow.audit.data.repository
 
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.taskflow.audit.data.AppRepositories
 import com.taskflow.audit.security.EncryptedPrefs
 import kotlinx.coroutines.tasks.await
 
@@ -10,38 +12,21 @@ sealed class AuthResult {
     data class Failure(val message: String) : AuthResult()
 }
 
-/**
- * Handles Firebase Authentication.
- *
- * Staff are pre-provisioned with email: {shortId}@taskflow.audit (dummy domain)
- * and their PIN as password. Firebase hashes/salts passwords server-side — the
- * app never sees the plaintext PIN after the initial sign-in call.
- *
- * Token lifecycle:
- *   - Firebase ID tokens expire after 1 hour and are auto-refreshed by the SDK
- *   - The SDK persists tokens in its own encrypted store
- *   - EncryptedPrefs stores only the staffId and biometric flag
- */
 class AuthRepository(private val auth: FirebaseAuth) {
 
     val currentUser: FirebaseUser? get() = auth.currentUser
 
     val isLoggedIn: Boolean get() = auth.currentUser != null
 
-    /**
-     * Signs in with email constructed from shortId and the entered PIN.
-     * Returns the Firebase user on success so callers can fetch the staff document.
-     */
     suspend fun signIn(shortId: String, pin: String): AuthResult {
         return try {
             val email = buildEmail(shortId)
-            val result = auth.signInWithEmailAndPassword(email, pin).await()
+            val result = auth.signInWithEmailAndPassword(email, pin.padEnd(6, '0')).await()
             val user = result.user ?: return AuthResult.Failure("Authentication returned no user")
 
             EncryptedPrefs.putString(EncryptedPrefs.KEY_USER_ID, user.uid)
             EncryptedPrefs.putString(EncryptedPrefs.KEY_STAFF_SHORT_ID, shortId)
 
-            // Fetch the staff document to determine admin status
             val staffRepo = StaffRepository()
             val staffDoc = staffRepo.getStaffByUid(user.uid)
             val isAdmin = staffDoc?.isAdmin ?: false
@@ -59,13 +44,45 @@ class AuthRepository(private val auth: FirebaseAuth) {
         EncryptedPrefs.putLong(EncryptedPrefs.KEY_LAST_AUTH_TIMESTAMP, 0L)
     }
 
-    /** Called after successful biometric auth to validate the existing Firebase session. */
     suspend fun refreshToken(): Boolean {
         return try {
             auth.currentUser?.getIdToken(true)?.await() != null
         } catch (_: Exception) {
             false
         }
+    }
+
+    /**
+     * Creates a new Firebase Auth user for a staff member using a secondary FirebaseApp
+     * instance so that the currently signed-in admin session is NOT disturbed.
+     * Returns the new user's UID.
+     */
+    suspend fun createStaff(
+        shortId: String,
+        fullName: String,
+        role: String,
+        colorHex: String,
+        isAdmin: Boolean
+    ): String {
+        val email = buildEmail(shortId)
+        val tempAppName = "tf_create_${System.currentTimeMillis()}"
+        val opts = FirebaseApp.getInstance().options
+        val tempApp = FirebaseApp.initializeApp(AppRepositories.appContext, opts, tempAppName)
+            ?: throw Exception("Could not init secondary Firebase app")
+        val tempAuth = FirebaseAuth.getInstance(tempApp)
+        return try {
+            val result = tempAuth.createUserWithEmailAndPassword(email, "123400").await()
+            result.user?.uid ?: throw Exception("No UID returned")
+        } finally {
+            tempApp.delete()
+        }
+    }
+
+    /**
+     * Updates the current user's password (used during forced PIN reset flow).
+     */
+    suspend fun updateCurrentUserPin(newPin: String) {
+        auth.currentUser?.updatePassword(newPin.padEnd(6, '0'))?.await()
     }
 
     fun enableBiometric() = EncryptedPrefs.putBoolean(EncryptedPrefs.KEY_BIOMETRIC_ENABLED, true)
