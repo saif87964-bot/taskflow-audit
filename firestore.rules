@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ──────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isOwner(staffId) {
+      return isAuth() && request.auth.uid == staffId;
+    }
+
+    function isValidStatus(s) {
+      return s in ['PENDING', 'IN_PROGRESS', 'DONE'];
+    }
+
+    // ─── Staff profiles ────────────────────────────────────────────────────
+    // All authenticated users can read (needed for engagement chips, etc.)
+    // Only admins can create / update staff documents
+    match /staff/{staffId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Engagements ────────────────────────────────────────────────────────
+    match /engagements/{engId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Time sessions ──────────────────────────────────────────────────────
+    // Staff can read and write only their own sessions
+    // Admins can read all, update (for manual correction), but not delete
+    match /timeSessions/{sessionId} {
+      allow read: if isAdmin() || (isAuth() && resource.data.staffId == request.auth.uid);
+      allow create: if isAuth() && request.resource.data.staffId == request.auth.uid;
+      allow update: if isAdmin() ||
+        (isAuth() && resource.data.staffId == request.auth.uid &&
+         request.resource.data.staffId == request.auth.uid);  // cannot reassign session
+      allow delete: if isAdmin();
+    }
+
+    // ─── Tasks ───────────────────────────────────────────────────────────────
+    // Staff can read their own tasks and update only the status field
+    // Admins have full CRUD
+    match /tasks/{taskId} {
+      allow read: if isAdmin() || (isAuth() && resource.data.assigneeId == request.auth.uid);
+      allow create: if isAdmin();
+      allow update: if isAdmin() ||
+        (isAuth() &&
+         resource.data.assigneeId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'updatedAt']) &&
+         isValidStatus(request.resource.data.status));
+      allow delete: if isAdmin();
+    }
+
+    // ─── Log entries ─────────────────────────────────────────────────────────
+    // Staff create and read their own entries
+    // Admins read all entries; no one deletes (audit trail must be preserved)
+    match /logEntries/{entryId} {
+      allow read: if isAdmin() || (isAuth() && resource.data.staffId == request.auth.uid);
+      allow create: if isAuth() && request.resource.data.staffId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if false;  // Log entries are permanent
+    }
+  }
+}

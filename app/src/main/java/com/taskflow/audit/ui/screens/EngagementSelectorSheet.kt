@@ -12,25 +12,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.taskflow.audit.data.mock.Engagement
-import com.taskflow.audit.data.mock.EngagementType
-import com.taskflow.audit.data.mock.MockData
+import com.taskflow.audit.data.model.EngagementDocument
 import com.taskflow.audit.ui.components.EngagementChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EngagementSelectorSheet(
+    engagements: List<EngagementDocument>,
     onDismiss: () -> Unit,
-    onSelect: (Engagement) -> Unit
+    onSelect: (engagementId: String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
-    val recent = MockData.engagements.take(3)
-    val filtered = MockData.engagements.filter {
+
+    val filtered = engagements.filter {
+        query.isEmpty() ||
         it.clientName.contains(query, ignoreCase = true) ||
         it.code.contains(query, ignoreCase = true)
     }
-    val billable = filtered.filter { it.type != EngagementType.ADMIN }
-    val internal = filtered.filter { it.type == EngagementType.ADMIN }
+    val billable = filtered.filter { it.type != "ADMIN" }
+    val internal = filtered.filter { it.type == "ADMIN" }
+    val recent = filtered.take(3)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -68,62 +69,59 @@ fun EngagementSelectorSheet(
 
             Spacer(Modifier.height(16.dp))
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.heightIn(max = 480.dp)
-            ) {
-                if (query.isEmpty()) {
-                    item {
-                        Text(
-                            "RECENT",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(6.dp))
-                    }
-                    items(recent) { eng ->
-                        EngagementListItem(engagement = eng, onClick = { onSelect(eng) })
-                    }
-                    item { Spacer(Modifier.height(8.dp)) }
+            if (engagements.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.heightIn(max = 480.dp)
+                ) {
+                    if (query.isEmpty()) {
+                        item {
+                            Text("RECENT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        items(recent) { eng ->
+                            EngagementDocListItem(engagement = eng, onClick = { onSelect(eng.id) })
+                        }
+                        item { Spacer(Modifier.height(8.dp)) }
+                    }
 
-                if (billable.isNotEmpty()) {
-                    item {
-                        Text(
-                            "CLIENT ENGAGEMENTS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(6.dp))
+                    if (billable.isNotEmpty()) {
+                        item {
+                            Text("CLIENT ENGAGEMENTS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        items(billable) { eng ->
+                            EngagementDocListItem(engagement = eng, onClick = { onSelect(eng.id) })
+                        }
                     }
-                    items(billable) { eng ->
-                        EngagementListItem(engagement = eng, onClick = { onSelect(eng) })
+
+                    if (internal.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Text("INTERNAL / ADMIN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        items(internal) { eng ->
+                            EngagementDocListItem(engagement = eng, onClick = { onSelect(eng.id) })
+                        }
                     }
+
+                    item { Spacer(Modifier.height(24.dp)) }
                 }
-
-                if (internal.isNotEmpty()) {
-                    item {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "INTERNAL / ADMIN",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(6.dp))
-                    }
-                    items(internal) { eng ->
-                        EngagementListItem(engagement = eng, onClick = { onSelect(eng) })
-                    }
-                }
-
-                item { Spacer(Modifier.height(24.dp)) }
             }
         }
     }
 }
 
 @Composable
-private fun EngagementListItem(engagement: Engagement, onClick: () -> Unit) {
+private fun EngagementDocListItem(engagement: EngagementDocument, onClick: () -> Unit) {
     ListItem(
         headlineContent = {
             Text(engagement.clientName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
@@ -132,13 +130,13 @@ private fun EngagementListItem(engagement: Engagement, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(engagement.code, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(engagement.type.name, style = MaterialTheme.typography.labelSmall, color = engagement.color)
+                Text(engagement.type, style = MaterialTheme.typography.labelSmall)
             }
         },
         leadingContent = {
-            EngagementChip(engagement = engagement, compact = true)
+            EngagementChip(doc = engagement, compact = true)
         },
-        modifier = androidx.compose.ui.Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),

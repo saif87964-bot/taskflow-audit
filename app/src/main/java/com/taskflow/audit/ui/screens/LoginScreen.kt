@@ -4,246 +4,297 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.taskflow.audit.data.mock.MockData
-import com.taskflow.audit.ui.theme.Navy900
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.taskflow.audit.data.AppRepositories
+import com.taskflow.audit.security.BiometricHelper
+import com.taskflow.audit.security.BiometricResult
+import com.taskflow.audit.ui.viewmodel.LoginViewModel
+
+private data class StaffEntry(
+    val shortId: String,
+    val name: String,
+    val role: String,
+    val colorHex: Long
+)
+
+private val staffList = listOf(
+    StaffEntry("im", "Imtiaz M",  "Senior Auditor", 0xFF1565C0),
+    StaffEntry("kh", "Khalid H",  "Audit Manager",  0xFF00695C),
+    StaffEntry("av", "Anita V",   "Auditor",         0xFF6A1B9A),
+    StaffEntry("an", "Amina N",   "Tax Consultant",  0xFFE65100),
+    StaffEntry("jp", "James P",   "Partner",         0xFF37474F),
+)
 
 @Composable
-fun LoginScreen(onLogin: (staffId: String, isAdmin: Boolean) -> Unit) {
-    var selectedStaffId by remember { mutableStateOf("") }
-    var pin by remember { mutableStateOf("") }
-    var showError by remember { mutableStateOf(false) }
+fun LoginScreen(
+    onLogin: (staffUid: String, isAdmin: Boolean) -> Unit,
+    vm: LoginViewModel = viewModel()
+) {
+    val state by vm.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
 
-    val selectedStaff = MockData.staffMembers.find { it.id == selectedStaffId }
+    // Navigate on successful auth
+    LaunchedEffect(state.navigateToStaffHome, state.navigateToAdmin) {
+        state.navigateToStaffHome?.let { uid ->
+            vm.clearNavigation()
+            onLogin(uid, false)
+        }
+        state.navigateToAdmin?.let { uid ->
+            vm.clearNavigation()
+            onLogin(uid, true)
+        }
+    }
 
-    Box(
+    // Biometric enrollment dialog after first PIN login
+    if (state.offerBiometricEnroll && BiometricHelper.isAvailable(context)) {
+        AlertDialog(
+            onDismissRequest = { vm.skipBiometricAndProceed() },
+            icon = { Icon(Icons.Default.Fingerprint, null) },
+            title = { Text("Enable Fingerprint Unlock?") },
+            text = { Text("Sign in faster next time using your fingerprint or face. You can always use your PIN instead.") },
+            confirmButton = {
+                Button(onClick = { vm.enableBiometricAndProceed() }) { Text("Enable") }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.skipBiometricAndProceed() }) { Text("Not Now") }
+            }
+        )
+    } else if (state.offerBiometricEnroll) {
+        // Biometric not available — skip enrollment silently
+        LaunchedEffect(Unit) { vm.skipBiometricAndProceed() }
+    }
+
+    // Auto-prompt biometric for returning users
+    LaunchedEffect(state.requiresBiometric) {
+        if (state.requiresBiometric && activity != null && BiometricHelper.isAvailable(context)) {
+            BiometricHelper.prompt(activity) { result ->
+                when (result) {
+                    is BiometricResult.Success -> vm.onBiometricSuccess()
+                    is BiometricResult.UserCancelled -> vm.onBiometricDismissed()
+                    is BiometricResult.Error -> vm.onBiometricDismissed()
+                }
+            }
+        }
+    }
+
+    var selectedStaff by remember { mutableStateOf<StaffEntry?>(null) }
+    var pinEntry by remember { mutableStateOf("") }
+
+    val onAvatarClick = { s: StaffEntry ->
+        selectedStaff = s
+        pinEntry = ""
+        vm.clearError()
+    }
+
+    val onKeyPress = { digit: String ->
+        if (pinEntry.length < 4) {
+            pinEntry += digit
+            if (pinEntry.length == 4) {
+                selectedStaff?.let { vm.signIn(it.shortId, pinEntry) }
+            }
+        }
+    }
+
+    val onDelete = {
+        if (pinEntry.isNotEmpty()) pinEntry = pinEntry.dropLast(1)
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Navy900, MaterialTheme.colorScheme.background)
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Spacer(Modifier.height(72.dp))
+
+        // Brand icon
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 32.dp, vertical = 48.dp)
+                .size(56.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center
         ) {
-            Spacer(Modifier.height(24.dp))
+            Text("TF", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "TaskFlow Audit",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "TIME TRACKING & ENGAGEMENT MANAGEMENT",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 2.sp
+        )
 
-            // Logo / Brand
-            Text(
-                text = "TaskFlow",
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = "AUDIT",
-                style = MaterialTheme.typography.titleLarge,
-                letterSpacing = 6.sp,
-                color = MaterialTheme.colorScheme.tertiary
-            )
+        Spacer(Modifier.height(40.dp))
+        Text(
+            "SELECT STAFF",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 2.sp
+        )
+        Spacer(Modifier.height(14.dp))
 
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Time Tracking & Engagement Management",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(Modifier.height(40.dp))
-
-            // Staff selector
-            Text(
-                text = "SELECT STAFF",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.5f),
-                letterSpacing = 2.sp
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                MockData.staffMembers.forEach { staff ->
-                    val isSelected = staff.id == selectedStaffId
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+        // Staff avatars
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            staffList.forEach { s ->
+                val isSelected = selectedStaff?.shortId == s.shortId
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onAvatarClick(s) }
+                ) {
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedStaffId = staff.id
-                                pin = ""
-                                showError = false
-                            }
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(Color(s.colorHex).copy(alpha = if (isSelected) 1f else 0.35f))
+                            .then(
+                                if (isSelected)
+                                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) staff.avatarColor else staff.avatarColor.copy(alpha = 0.4f))
-                                .then(
-                                    if (isSelected) Modifier.border(2.dp, Color.White, CircleShape)
-                                    else Modifier
-                                )
-                        ) {
-                            Text(
-                                text = staff.initials,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
-                        Spacer(Modifier.height(4.dp))
                         Text(
-                            text = staff.initials,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            s.shortId.uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp
                         )
                     }
-                }
-            }
-
-            Spacer(Modifier.height(36.dp))
-
-            if (selectedStaff != null) {
-                Text(
-                    text = selectedStaff.fullName.uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White,
-                    letterSpacing = 1.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = selectedStaff.role,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.5f)
-                )
-                Spacer(Modifier.height(24.dp))
-
-                // PIN dots
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    repeat(4) { i ->
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (i < pin.length) MaterialTheme.colorScheme.tertiary
-                                    else Color.White.copy(alpha = 0.25f)
-                                )
-                        )
-                    }
-                }
-
-                if (showError) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text = "Incorrect PIN. Try 1234.",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.labelMedium
+                        s.shortId.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        fontWeight = FontWeight.Bold
                     )
                 }
+            }
+        }
 
-                Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(32.dp))
 
-                // PIN pad
-                PinPad(
-                    onDigit = {
-                        if (pin.length < 4) {
-                            pin += it
-                            showError = false
-                            if (pin.length == 4) {
-                                if (pin == "1234") {
-                                    onLogin(selectedStaffId, selectedStaff.isAdmin)
-                                } else {
-                                    showError = true
-                                    pin = ""
-                                }
-                            }
-                        }
-                    },
-                    onDelete = { if (pin.isNotEmpty()) pin = pin.dropLast(1) }
-                )
-            } else {
+        if (selectedStaff != null) {
+            Text(selectedStaff!!.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                selectedStaff!!.role,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            // PIN dots
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                repeat(4) { i ->
+                    Box(
+                        modifier = Modifier
+                            .size(13.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (i < pinEntry.length) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                            )
+                    )
+                }
+            }
+
+            if (state.error != null) {
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Select a staff member above to continue",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.4f),
-                    textAlign = TextAlign.Center
+                    state.error!!,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
+
+            Spacer(Modifier.height(24.dp))
+
+            if (state.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            } else {
+                PinKeypad(onKey = onKeyPress, onDelete = onDelete)
+
+                // Biometric shortcut for returning users
+                if (BiometricHelper.isAvailable(context) && AppRepositories.auth.isBiometricEnabled()) {
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(onClick = {
+                        activity?.let { a ->
+                            BiometricHelper.prompt(a) { result ->
+                                if (result is BiometricResult.Success) vm.onBiometricSuccess()
+                            }
+                        }
+                    }) {
+                        Icon(Icons.Default.Fingerprint, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Use biometric")
+                    }
+                }
+            }
+        } else {
+            Text(
+                "Tap your avatar to sign in",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
-private fun PinPad(onDigit: (String) -> Unit, onDelete: () -> Unit) {
-    val rows = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
-        listOf("", "0", "DEL"),
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        rows.forEach { row ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                row.forEach { key ->
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1.6f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (key.isEmpty()) Color.Transparent
-                                else Color.White.copy(alpha = 0.08f)
-                            )
-                            .then(
-                                if (key.isNotEmpty()) Modifier.clickable {
-                                    if (key == "DEL") onDelete() else onDigit(key)
-                                } else Modifier
-                            )
-                    ) {
-                        if (key == "DEL") {
-                            Icon(
-                                Icons.Default.Backspace,
-                                contentDescription = "Delete",
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        } else if (key.isNotEmpty()) {
-                            Text(
-                                text = key,
-                                color = Color.White,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
+private fun PinKeypad(onKey: (String) -> Unit, onDelete: () -> Unit) {
+    val keys = listOf("1","2","3","4","5","6","7","8","9","","0","⌫")
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 40.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        userScrollEnabled = false
+    ) {
+        items(keys.size) { i ->
+            val key = keys[i]
+            if (key.isEmpty()) {
+                Box(Modifier.aspectRatio(1.8f))
+            } else {
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1.8f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { if (key == "⌫") onDelete() else onKey(key) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(key, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

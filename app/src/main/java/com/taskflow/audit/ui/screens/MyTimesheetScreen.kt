@@ -13,31 +13,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.taskflow.audit.data.mock.MockData
-import com.taskflow.audit.ui.components.EngagementChip
-import com.taskflow.audit.ui.components.SessionTimelineItem
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.taskflow.audit.data.model.TimeSessionDocument
 import com.taskflow.audit.ui.theme.CheckedInGreen
+import com.taskflow.audit.ui.viewmodel.TimesheetViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyTimesheetScreen(
-    staffId: String,
+    vm: TimesheetViewModel,
     onBack: () -> Unit
 ) {
-    val status = MockData.getStaffStatus(staffId) ?: return
-    val sessions = status.sessions
+    val state by vm.state.collectAsStateWithLifecycle()
     val today = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(Date())
-
-    // Compute breakdown per engagement
-    val breakdown = sessions
-        .groupBy { it.engagementId }
-        .mapValues { (_, list) ->
-            list.sumOf { s ->
-                ((s.endTime ?: System.currentTimeMillis()) - s.startTime).toDouble() / 3_600_000.0
-            }.toFloat()
-        }
 
     Scaffold(
         topBar = {
@@ -48,27 +38,22 @@ fun MyTimesheetScreen(
                         Text(today, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = "Pick date")
-                    }
-                }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                actions = { IconButton(onClick = {}) { Icon(Icons.Default.CalendarMonth, "Pick date") } }
             )
         }
     ) { padding ->
+        if (state.isLoading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Summary header card
             item {
                 Spacer(Modifier.height(8.dp))
                 Card(
@@ -81,58 +66,51 @@ fun MyTimesheetScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SummaryItem("Total Today", "%.1fh".format(status.hoursToday), CheckedInGreen)
+                        SummaryItem("Total Today", "%.1fh".format(state.hoursToday), CheckedInGreen)
                         VerticalDivider(modifier = Modifier.height(40.dp))
-                        SummaryItem("Sessions", "${sessions.size}", MaterialTheme.colorScheme.onPrimaryContainer)
+                        SummaryItem("Sessions", "${state.sessions.size}", MaterialTheme.colorScheme.onPrimaryContainer)
                         VerticalDivider(modifier = Modifier.height(40.dp))
-                        SummaryItem("Clients", "${breakdown.size}", MaterialTheme.colorScheme.onPrimaryContainer)
+                        SummaryItem("Clients", "${state.breakdownByEngagement.size}", MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
             }
 
-            // Engagement breakdown
-            item {
-                Text(
-                    "TIME BY ENGAGEMENT",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                breakdown.forEach { (engId, hours) ->
-                    val eng = MockData.getEngagementById(engId) ?: return@forEach
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        EngagementChip(engagement = eng, compact = true)
-                        Text(
-                            "%.1fh".format(hours),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = eng.color
-                        )
+            if (state.breakdownByEngagement.isNotEmpty()) {
+                item {
+                    Text("TIME BY ENGAGEMENT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    state.breakdownByEngagement.forEach { (engId, minutes) ->
+                        val eng = state.engagementById(engId)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                eng?.clientName ?: engId,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "%.1fh".format(minutes / 60.0),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
 
-            // Timeline header
             item {
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "SESSION TIMELINE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("SESSION TIMELINE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
             }
 
-            if (sessions.isEmpty()) {
+            if (state.sessions.isEmpty()) {
                 item {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxWidth().padding(32.dp)
-                    ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(32.dp)) {
                         Text(
                             "No sessions logged today.\nCheck in to start tracking.",
                             style = MaterialTheme.typography.bodyMedium,
@@ -142,13 +120,9 @@ fun MyTimesheetScreen(
                     }
                 }
             } else {
-                itemsIndexed(sessions) { index, session ->
-                    val engagement = MockData.getEngagementById(session.engagementId)
-                    SessionTimelineItem(
-                        session = session,
-                        engagement = engagement,
-                        isLast = index == sessions.lastIndex
-                    )
+                itemsIndexed(state.sessions) { index, session ->
+                    val engName = state.engagementById(session.engagementId)?.clientName ?: session.engagementId
+                    SessionDocRow(session = session, engagementName = engName, isLast = index == state.sessions.lastIndex)
                 }
             }
 
@@ -160,16 +134,35 @@ fun MyTimesheetScreen(
 @Composable
 private fun SummaryItem(label: String, value: String, valueColor: androidx.compose.ui.graphics.Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = valueColor
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-        )
+        Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = valueColor)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
     }
+}
+
+@Composable
+private fun SessionDocRow(session: TimeSessionDocument, engagementName: String, isLast: Boolean) {
+    val startFmt = session.startTime?.toDate()?.let {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(it)
+    } ?: "--:--"
+    val endFmt = session.endTime?.toDate()?.let {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(it)
+    } ?: "--:--"
+
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
+            Text(startFmt, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+            Text("–", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(endFmt, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(engagementName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${session.durationMinutes} min",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    if (!isLast) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), modifier = Modifier.padding(start = 60.dp))
 }

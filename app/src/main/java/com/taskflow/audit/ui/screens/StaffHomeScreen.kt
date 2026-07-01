@@ -1,6 +1,5 @@
 package com.taskflow.audit.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,50 +10,58 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.taskflow.audit.data.mock.Engagement
-import com.taskflow.audit.data.mock.MockData
-import com.taskflow.audit.data.mock.StaffStatus
-import com.taskflow.audit.data.mock.TaskStatus
-import com.taskflow.audit.ui.components.CheckInFab
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.taskflow.audit.ui.components.EngagementChip
 import com.taskflow.audit.ui.theme.CheckedInGreen
+import com.taskflow.audit.ui.viewmodel.StaffHomeViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StaffHomeScreen(
-    staffId: String,
+    vm: StaffHomeViewModel,
     onNavigateToTimesheet: () -> Unit,
     onNavigateToTasks: () -> Unit,
     onNavigateToLogbook: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
-    var status by remember { mutableStateOf(MockData.getStaffStatus(staffId)!!) }
+    val state by vm.state.collectAsStateWithLifecycle()
     var showEngagementSheet by remember { mutableStateOf(false) }
-    var elapsedTime by remember { mutableStateOf("0h 00m") }
-    val myTasks = remember(staffId) { MockData.getTasksForStaff(staffId) }
-    val pendingTaskCount = myTasks.count { it.status != TaskStatus.DONE }
 
-    // Simulate timer ticking
-    LaunchedEffect(status.isCheckedIn) {
-        if (status.isCheckedIn) {
-            var seconds = 5400 // mock 1.5h elapsed
-            while (status.isCheckedIn) {
-                elapsedTime = "%dh %02dm".format(seconds / 3600, (seconds % 3600) / 60)
+    // Running timer display for active session
+    var elapsedDisplay by remember { mutableStateOf("") }
+    LaunchedEffect(state.activeSession) {
+        val session = state.activeSession
+        if (session != null) {
+            while (true) {
+                val startSec = session.startTime?.seconds ?: (System.currentTimeMillis() / 1000)
+                val elapsed = ((System.currentTimeMillis() / 1000) - startSec).toInt()
+                elapsedDisplay = "%dh %02dm".format(elapsed / 3600, (elapsed % 3600) / 60)
                 kotlinx.coroutines.delay(60_000)
-                seconds += 60
             }
+        } else {
+            elapsedDisplay = ""
+        }
+    }
+
+    // Error snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(state.error) {
+        state.error?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            vm.clearError()
         }
     }
 
     val today = SimpleDateFormat("EEEE, d MMM yyyy", Locale.getDefault()).format(Date())
+    val firstName = state.staff?.fullName?.split(" ")?.first() ?: ""
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -71,12 +78,17 @@ fun StaffHomeScreen(
                         Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
+        if (state.isLoading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -91,27 +103,23 @@ fun StaffHomeScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Hello, ${status.staff.fullName.split(" ").first()}",
+                            text = if (firstName.isNotEmpty()) "Hello, $firstName" else "Welcome back",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = status.staff.role,
+                            text = state.staff?.role ?: "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
                     }
-                    // Hours today badge
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "%.1f".format(status.hoursToday),
+                            text = "%.1f".format(state.hoursToday),
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -127,30 +135,27 @@ fun StaffHomeScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // Check-in FAB
-            CheckInFab(
-                isCheckedIn = status.isCheckedIn,
-                elapsedTime = if (status.isCheckedIn) elapsedTime else "",
+            // Check-in / Check-out FAB
+            com.taskflow.audit.ui.components.CheckInFab(
+                isCheckedIn = state.isCheckedIn,
+                elapsedTime = elapsedDisplay,
                 onClick = {
-                    if (!status.isCheckedIn) {
+                    if (!state.isCheckedIn) {
                         showEngagementSheet = true
                     } else {
-                        // Check out
-                        status = status.copy(isCheckedIn = false, currentEngagement = null)
+                        vm.checkOut()
                     }
                 }
             )
 
             Spacer(Modifier.height(24.dp))
 
-            // Current engagement
-            if (status.isCheckedIn && status.currentEngagement != null) {
+            // Current engagement card
+            if (state.isCheckedIn && state.currentEngagement != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = CheckedInGreen.copy(alpha = 0.08f)
-                    )
+                    colors = CardDefaults.cardColors(containerColor = CheckedInGreen.copy(alpha = 0.08f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -160,7 +165,7 @@ fun StaffHomeScreen(
                             letterSpacing = androidx.compose.ui.unit.TextUnit(2f, androidx.compose.ui.unit.TextUnitType.Sp)
                         )
                         Spacer(Modifier.height(8.dp))
-                        EngagementChip(engagement = status.currentEngagement!!, selected = true)
+                        EngagementChip(doc = state.currentEngagement!!, selected = true)
                         Spacer(Modifier.height(12.dp))
                         TextButton(
                             onClick = { showEngagementSheet = true },
@@ -183,27 +188,27 @@ fun StaffHomeScreen(
             ) {
                 QuickStatCard(
                     label = "Sessions",
-                    value = "${status.sessions.size}",
+                    value = "${state.todaySessions.size}",
                     icon = Icons.Default.Timer,
                     modifier = Modifier.weight(1f)
                 )
                 QuickStatCard(
                     label = "Engagements",
-                    value = "${status.sessions.map { it.engagementId }.distinct().size}",
+                    value = "${state.todaySessions.map { it.engagementId }.distinct().size}",
                     icon = Icons.Default.BusinessCenter,
                     modifier = Modifier.weight(1f)
                 )
                 QuickStatCard(
-                    label = "This Week",
-                    value = "%.0fh".format(status.hoursToday * 3.2f),
-                    icon = Icons.Default.DateRange,
+                    label = "Tasks Pending",
+                    value = "${state.pendingTaskCount}",
+                    icon = Icons.Default.CheckBox,
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(Modifier.height(20.dp))
 
-            // Action buttons row
+            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -219,9 +224,7 @@ fun StaffHomeScreen(
                 }
                 BadgedBox(
                     badge = {
-                        if (pendingTaskCount > 0) {
-                            Badge { Text("$pendingTaskCount") }
-                        }
+                        if (state.pendingTaskCount > 0) Badge { Text("${state.pendingTaskCount}") }
                     },
                     modifier = Modifier.weight(1f)
                 ) {
@@ -250,12 +253,11 @@ fun StaffHomeScreen(
 
     if (showEngagementSheet) {
         EngagementSelectorSheet(
+            engagements = state.engagements,
             onDismiss = { showEngagementSheet = false },
-            onSelect = { engagement ->
-                status = status.copy(
-                    isCheckedIn = true,
-                    currentEngagement = engagement
-                )
+            onSelect = { engagementId ->
+                if (state.isCheckedIn) vm.switchEngagement(engagementId)
+                else vm.checkIn(engagementId)
                 showEngagementSheet = false
             }
         )

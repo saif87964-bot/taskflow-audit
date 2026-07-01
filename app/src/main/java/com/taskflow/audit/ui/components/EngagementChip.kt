@@ -18,6 +18,59 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.taskflow.audit.data.mock.Engagement
 import com.taskflow.audit.data.mock.EngagementType
+import com.taskflow.audit.data.model.EngagementDocument
+
+@Composable
+fun EngagementChip(
+    doc: EngagementDocument,
+    selected: Boolean = false,
+    compact: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val color = try {
+        Color(android.graphics.Color.parseColor(doc.colorHex))
+    } catch (_: Exception) { Color(0xFF00897B) }
+
+    val bgColor = if (selected) color else color.copy(alpha = 0.12f)
+    val textColor = if (selected) Color.White else color
+    val shape = RoundedCornerShape(50)
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .clip(shape)
+            .background(bgColor)
+            .then(if (!selected) Modifier.border(1.dp, color.copy(alpha = 0.3f), shape) else Modifier)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(horizontal = if (compact) 8.dp else 12.dp, vertical = if (compact) 4.dp else 6.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(if (compact) 18.dp else 22.dp)
+                .background(if (selected) Color.White.copy(alpha = 0.25f) else color, CircleShape)
+        ) {
+            Text(
+                text = doc.code.take(2),
+                color = Color.White,
+                fontSize = if (compact) 7.sp else 8.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Text(
+            text = if (compact && doc.clientName.length > 18) doc.clientName.take(16) + "…"
+                   else doc.clientName,
+            color = textColor,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+        )
+        if (doc.type == "ADMIN") {
+            Text("INTERNAL", color = textColor.copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
 
 @Composable
 fun EngagementChip(

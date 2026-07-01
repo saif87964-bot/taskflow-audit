@@ -1,10 +1,22 @@
 *.iml
 .gradle
 /local.properties
+local.properties
 /.idea
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# Firebase — NEVER commit these
+app/google-services.json
+google-services.json
+
+# Keystore — NEVER commit
+*.jks
+*.keystore
+
+# Firebase Admin SDK service account key
+*serviceAccountKey*.json
+scripts/node_modules/
