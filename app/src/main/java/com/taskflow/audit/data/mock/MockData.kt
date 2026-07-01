@@ -36,6 +36,30 @@ data class StaffStatus(
 
 enum class EngagementType { AUDIT, TAX, ADVISORY, ADMIN }
 
+enum class TaskPriority { HIGH, MEDIUM, LOW }
+enum class TaskStatus { PENDING, IN_PROGRESS, DONE }
+enum class LogCategory { OBSERVATION, FINDING, MEETING, ADMIN }
+
+data class AuditTask(
+    val id: String,
+    val title: String,
+    val description: String,
+    val engagementId: String,
+    val assigneeId: String,
+    val priority: TaskPriority,
+    val status: TaskStatus,
+    val dueDate: String
+)
+
+data class LogEntry(
+    val id: String,
+    val staffId: String,
+    val engagementId: String,
+    val note: String,
+    val category: LogCategory,
+    val timestamp: String
+)
+
 object MockData {
 
     val engagementColors = listOf(
@@ -107,6 +131,31 @@ object MockData {
     fun getStaffStatus(staffId: String): StaffStatus? = getStaffStatuses().find { it.staff.id == staffId }
 
     val notLoggedToday = listOf("jp")
+
+    val tasks = listOf(
+        AuditTask("t1", "Verify bank reconciliation statements", "Cross-check Q1 statements against ledger balances", "e1", "im", TaskPriority.HIGH, TaskStatus.IN_PROGRESS, "2026-07-03"),
+        AuditTask("t2", "Prepare TRA submission checklist", "Compile outstanding items for statutory filing", "e2", "an", TaskPriority.HIGH, TaskStatus.PENDING, "2026-07-02"),
+        AuditTask("t3", "Review fixed assets register", "Verify additions and disposals for the year", "e3", "im", TaskPriority.MEDIUM, TaskStatus.PENDING, "2026-07-04"),
+        AuditTask("t4", "Client file indexing", "Archive engagement correspondence and working papers", "e4", "av", TaskPriority.LOW, TaskStatus.DONE, "2026-06-30"),
+        AuditTask("t5", "Receivables confirmation follow-up", "Chase outstanding debtor confirmations", "e6", "an", TaskPriority.HIGH, TaskStatus.PENDING, "2026-07-01"),
+        AuditTask("t6", "Draft management letter points", "Summarise control weaknesses identified during audit", "e1", "kh", TaskPriority.MEDIUM, TaskStatus.IN_PROGRESS, "2026-07-05"),
+        AuditTask("t7", "VAT input review", "Reconcile input VAT claims with supplier invoices", "e7", "av", TaskPriority.MEDIUM, TaskStatus.PENDING, "2026-07-03"),
+        AuditTask("t8", "Update engagement budget tracker", "Input actual hours vs budgeted for partner review", "e8", "kh", TaskPriority.LOW, TaskStatus.DONE, "2026-06-28"),
+    )
+
+    val logEntries = listOf(
+        LogEntry("l1", "im", "e1", "Discussed bank confirmation procedures with CFO. Management confirmed three accounts; awaiting written confirmation from Standard Chartered.", LogCategory.MEETING, "Today, 9:15 AM"),
+        LogEntry("l2", "an", "e2", "Identified discrepancy of TZS 2.3M between VAT returns filed and GL entries. Queried with client — awaiting explanation.", LogCategory.FINDING, "Today, 10:30 AM"),
+        LogEntry("l3", "im", "e3", "Observed that fixed assets register has not been updated since March 2025. Several items appear fully depreciated but still in use.", LogCategory.OBSERVATION, "Yesterday, 2:00 PM"),
+        LogEntry("l4", "kh", "e4", "Partner review call with Union Trust management. Agreed extended timeline for Q4 deliverables to 15 July.", LogCategory.MEETING, "Yesterday, 4:30 PM"),
+        LogEntry("l5", "av", "e5", "Reviewed cash flow projections provided by client. Assumptions appear optimistic — flagged for further scrutiny.", LogCategory.OBSERVATION, "Today, 11:00 AM"),
+        LogEntry("l6", "an", "e6", "Site visit to New Jambiani Hotel. Verified physical inventory of FF&E assets against schedule. 12 items unaccounted for.", LogCategory.FINDING, "2026-06-30, 3:45 PM"),
+        LogEntry("l7", "im", "e1", "Sent audit confirmation letters to three banks. Reference numbers logged in working papers.", LogCategory.ADMIN, "2026-06-30, 8:30 AM"),
+        LogEntry("l8", "kh", "e7", "CPHK management submitted revised tax computation. Reviewed preliminary figures — corporate tax liability may increase.", LogCategory.OBSERVATION, "2026-06-29, 1:00 PM"),
+    )
+
+    fun getTasksForStaff(staffId: String) = tasks.filter { it.assigneeId == staffId }
+    fun getLogEntriesForStaff(staffId: String) = logEntries.filter { it.staffId == staffId }
 
     // Weekly hours per engagement (for admin view)
     val weeklyEngagementHours = mapOf(

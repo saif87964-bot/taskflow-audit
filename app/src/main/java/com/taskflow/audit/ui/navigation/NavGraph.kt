@@ -16,6 +16,12 @@ sealed class Screen(val route: String) {
     object MyTimesheet : Screen("my_timesheet/{staffId}") {
         fun createRoute(staffId: String) = "my_timesheet/$staffId"
     }
+    object Tasks : Screen("tasks/{staffId}/{isAdmin}") {
+        fun createRoute(staffId: String, isAdmin: Boolean) = "tasks/$staffId/$isAdmin"
+    }
+    object Logbook : Screen("logbook/{staffId}/{isAdmin}") {
+        fun createRoute(staffId: String, isAdmin: Boolean) = "logbook/$staffId/$isAdmin"
+    }
     object AdminDashboard : Screen("admin_dashboard/{adminId}") {
         fun createRoute(adminId: String) = "admin_dashboard/$adminId"
     }
@@ -60,6 +66,8 @@ fun TaskFlowNavHost(
             StaffHomeScreen(
                 staffId = staffId,
                 onNavigateToTimesheet = { navController.navigate(Screen.MyTimesheet.createRoute(staffId)) },
+                onNavigateToTasks = { navController.navigate(Screen.Tasks.createRoute(staffId, false)) },
+                onNavigateToLogbook = { navController.navigate(Screen.Logbook.createRoute(staffId, false)) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.createRoute(false, staffId)) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
@@ -81,6 +89,30 @@ fun TaskFlowNavHost(
         }
 
         composable(
+            route = Screen.Tasks.route,
+            arguments = listOf(
+                navArgument("staffId") { type = NavType.StringType },
+                navArgument("isAdmin") { type = NavType.BoolType }
+            )
+        ) { backStackEntry ->
+            val staffId = backStackEntry.arguments?.getString("staffId") ?: return@composable
+            val isAdmin = backStackEntry.arguments?.getBoolean("isAdmin") ?: false
+            TasksScreen(staffId = staffId, isAdmin = isAdmin, onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = Screen.Logbook.route,
+            arguments = listOf(
+                navArgument("staffId") { type = NavType.StringType },
+                navArgument("isAdmin") { type = NavType.BoolType }
+            )
+        ) { backStackEntry ->
+            val staffId = backStackEntry.arguments?.getString("staffId") ?: return@composable
+            val isAdmin = backStackEntry.arguments?.getBoolean("isAdmin") ?: false
+            LogbookScreen(staffId = staffId, isAdmin = isAdmin, onBack = { navController.popBackStack() })
+        }
+
+        composable(
             route = Screen.AdminDashboard.route,
             arguments = listOf(navArgument("adminId") { type = NavType.StringType })
         ) { backStackEntry ->
@@ -89,6 +121,8 @@ fun TaskFlowNavHost(
                 adminId = adminId,
                 onNavigateToStaffDetail = { staffId -> navController.navigate(Screen.AdminStaffDetail.createRoute(staffId)) },
                 onNavigateToEngagements = { navController.navigate(Screen.AdminEngagements.route) },
+                onNavigateToTasks = { navController.navigate(Screen.Tasks.createRoute(adminId, true)) },
+                onNavigateToLogbook = { navController.navigate(Screen.Logbook.createRoute(adminId, true)) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.createRoute(true, adminId)) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {

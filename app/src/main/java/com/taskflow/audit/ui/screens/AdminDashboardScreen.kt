@@ -26,6 +26,8 @@ fun AdminDashboardScreen(
     adminId: String,
     onNavigateToStaffDetail: (String) -> Unit,
     onNavigateToEngagements: () -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToLogbook: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -49,6 +51,12 @@ fun AdminDashboardScreen(
                 actions = {
                     IconButton(onClick = onNavigateToEngagements) {
                         Icon(Icons.Default.BusinessCenter, contentDescription = "Engagements")
+                    }
+                    IconButton(onClick = onNavigateToTasks) {
+                        Icon(Icons.Default.CheckBox, contentDescription = "Tasks")
+                    }
+                    IconButton(onClick = onNavigateToLogbook) {
+                        Icon(Icons.Default.Book, contentDescription = "Logbook")
                     }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")

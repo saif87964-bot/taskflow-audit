@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.taskflow.audit.data.mock.Engagement
 import com.taskflow.audit.data.mock.MockData
 import com.taskflow.audit.data.mock.StaffStatus
+import com.taskflow.audit.data.mock.TaskStatus
 import com.taskflow.audit.ui.components.CheckInFab
 import com.taskflow.audit.ui.components.EngagementChip
 import com.taskflow.audit.ui.theme.CheckedInGreen
@@ -28,12 +29,16 @@ import java.util.*
 fun StaffHomeScreen(
     staffId: String,
     onNavigateToTimesheet: () -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToLogbook: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
     var status by remember { mutableStateOf(MockData.getStaffStatus(staffId)!!) }
     var showEngagementSheet by remember { mutableStateOf(false) }
     var elapsedTime by remember { mutableStateOf("0h 00m") }
+    val myTasks = remember(staffId) { MockData.getTasksForStaff(staffId) }
+    val pendingTaskCount = myTasks.count { it.status != TaskStatus.DONE }
 
     // Simulate timer ticking
     LaunchedEffect(status.isCheckedIn) {
@@ -198,15 +203,47 @@ fun StaffHomeScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // View timesheet button
-            OutlinedButton(
-                onClick = onNavigateToTimesheet,
+            // Action buttons row
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("View My Timesheet")
+                OutlinedButton(
+                    onClick = onNavigateToTimesheet,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Timesheet", style = MaterialTheme.typography.labelMedium)
+                }
+                BadgedBox(
+                    badge = {
+                        if (pendingTaskCount > 0) {
+                            Badge { Text("$pendingTaskCount") }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedButton(
+                        onClick = onNavigateToTasks,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.CheckBox, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Tasks", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                OutlinedButton(
+                    onClick = onNavigateToLogbook,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Book, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Logbook", style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
     }
