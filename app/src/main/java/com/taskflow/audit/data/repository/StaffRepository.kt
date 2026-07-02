@@ -74,4 +74,13 @@ class StaffRepository(private val db: FirebaseFirestore = FirebaseFirestore.getI
         db.collection(Collections.STAFF).document(uid)
             .update("pendingPinReset", false).await()
     }
+
+    suspend fun updateStaff(uid: String, fullName: String, role: String, colorHex: String, isAdmin: Boolean) {
+        db.collection(Collections.STAFF).document(uid).update(mapOf(
+            "fullName" to fullName,
+            "role" to role,
+            "colorHex" to colorHex,
+            "isAdmin" to isAdmin
+        )).await()
+    }
 }

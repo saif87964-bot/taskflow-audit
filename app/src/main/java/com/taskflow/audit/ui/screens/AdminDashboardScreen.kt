@@ -58,6 +58,7 @@ fun AdminDashboardScreen(
     val today = SimpleDateFormat("EEEE, d MMM", Locale.getDefault()).format(Date())
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddStaffSheet by remember { mutableStateOf(false) }
+    var editingStaff by remember { mutableStateOf<StaffDocument?>(null) }
 
     val notLoggedAlerts = state.notLoggedToday.map { "${it.fullName} has not logged in today" }
 
@@ -65,6 +66,13 @@ fun AdminDashboardScreen(
         if (state.createStaffSuccess) {
             showAddStaffSheet = false
             snackbarHostState.showSnackbar("Staff account created. Default PIN: 1234")
+            vm.clearActionResult()
+        }
+    }
+    LaunchedEffect(state.updateStaffSuccess) {
+        if (state.updateStaffSuccess) {
+            editingStaff = null
+            snackbarHostState.showSnackbar("Staff updated successfully")
             vm.clearActionResult()
         }
     }
@@ -91,6 +99,22 @@ fun AdminDashboardScreen(
                 onDismiss = { showAddStaffSheet = false },
                 onConfirm = { shortId, fullName, role, colorHex, isAdmin ->
                     vm.createStaff(shortId, fullName, role, colorHex, isAdmin)
+                }
+            )
+        }
+    }
+
+    editingStaff?.let { staff ->
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { editingStaff = null },
+            sheetState = sheetState
+        ) {
+            EditStaffSheet(
+                staff = staff,
+                onDismiss = { editingStaff = null },
+                onConfirm = { fullName, role, colorHex, isAdmin ->
+                    vm.updateStaff(staff.uid, fullName, role, colorHex, isAdmin)
                 }
             )
         }
@@ -193,6 +217,7 @@ fun AdminDashboardScreen(
                     activeSession = activeSession,
                     engagementName = engagementName,
                     onClick = { onNavigateToStaffDetail(staffDoc.uid) },
+                    onEdit = { editingStaff = staffDoc },
                     onResetPin = { vm.resetStaffPin(staffDoc.uid) }
                 )
             }
@@ -208,6 +233,7 @@ private fun FirestoreStaffRow(
     activeSession: TimeSessionDocument?,
     engagementName: String?,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
     onResetPin: () -> Unit
 ) {
     val isCheckedIn = activeSession != null
@@ -289,11 +315,13 @@ private fun FirestoreStaffRow(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = { showMenu = false; onEdit() },
+                        leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Reset PIN") },
-                        onClick = {
-                            showMenu = false
-                            onResetPin()
-                        },
+                        onClick = { showMenu = false; onResetPin() },
                         leadingIcon = { Icon(Icons.Default.Lock, null, modifier = Modifier.size(18.dp)) }
                     )
                 }
@@ -324,6 +352,99 @@ private fun AdminStatCard(
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditStaffSheet(
+    staff: StaffDocument,
+    onDismiss: () -> Unit,
+    onConfirm: (fullName: String, role: String, colorHex: String, isAdmin: Boolean) -> Unit
+) {
+    var fullName by remember { mutableStateOf(staff.fullName) }
+    var selectedRole by remember { mutableStateOf(staff.role.ifBlank { staffRoleOptions[0] }) }
+    var isAdmin by remember { mutableStateOf(staff.isAdmin) }
+    var selectedColor by remember { mutableStateOf(staff.colorHex.ifBlank { dashboardColorPresets[0] }) }
+    var roleExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .navigationBarsPadding()
+    ) {
+        Text("Edit Staff Member", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(staff.shortId.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = fullName,
+            onValueChange = { fullName = it },
+            label = { Text("Full Name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
+        )
+        Spacer(Modifier.height(10.dp))
+
+        ExposedDropdownMenuBox(expanded = roleExpanded, onExpandedChange = { roleExpanded = !roleExpanded }) {
+            OutlinedTextField(
+                value = selectedRole,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Role") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = roleExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(expanded = roleExpanded, onDismissRequest = { roleExpanded = false }) {
+                staffRoleOptions.forEach { role ->
+                    DropdownMenuItem(text = { Text(role) }, onClick = { selectedRole = role; roleExpanded = false })
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text("Admin Access", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text("Can access admin dashboard", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = isAdmin, onCheckedChange = { isAdmin = it })
+        }
+        Spacer(Modifier.height(10.dp))
+
+        Text("Color", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(dashboardColorPresets) { hex ->
+                val c = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Gray }
+                Box(
+                    modifier = Modifier
+                        .size(if (selectedColor == hex) 34.dp else 28.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .clickable { selectedColor = hex }
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+            Button(
+                onClick = { onConfirm(fullName, selectedRole, selectedColor, isAdmin) },
+                modifier = Modifier.weight(1f),
+                enabled = fullName.isNotBlank()
+            ) { Text("Save Changes") }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 

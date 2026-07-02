@@ -20,6 +20,7 @@ data class AdminDashboardState(
     val isLoading: Boolean = true,
     val error: String? = null,
     val createStaffSuccess: Boolean = false,
+    val updateStaffSuccess: Boolean = false,
     val actionError: String? = null,
     val resetPinSuccess: String? = null
 ) {
@@ -75,9 +76,21 @@ class AdminViewModel(private val adminUid: String) : ViewModel() {
         }
     }
 
+    fun updateStaff(uid: String, fullName: String, role: String, colorHex: String, isAdmin: Boolean) {
+        viewModelScope.launch {
+            try {
+                AppRepositories.staff.updateStaff(uid, fullName, role, colorHex, isAdmin)
+                _state.value = _state.value.copy(updateStaffSuccess = true)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(actionError = "Failed to update staff: ${e.message}")
+            }
+        }
+    }
+
     fun clearActionResult() {
         _state.value = _state.value.copy(
             createStaffSuccess = false,
+            updateStaffSuccess = false,
             actionError = null,
             resetPinSuccess = null
         )
