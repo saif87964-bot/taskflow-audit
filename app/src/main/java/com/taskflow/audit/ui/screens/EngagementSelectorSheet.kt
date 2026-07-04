@@ -1,5 +1,6 @@
 package com.taskflow.audit.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -138,6 +139,7 @@ private fun EngagementDocListItem(engagement: EngagementDocument, onClick: () ->
         },
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(vertical = 2.dp),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
         tonalElevation = 0.dp
