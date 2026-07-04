@@ -222,7 +222,8 @@ fun AdminDashboardScreen(
                         value = "${state.engagements.count { it.type != "ADMIN" }}",
                         icon = Icons.Default.BusinessCenter,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onNavigateToEngagements
                     )
                     AdminStatCard(
                         label = "Not Logged",
@@ -385,21 +386,39 @@ private fun AdminStatCard(
     value: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     tint: androidx.compose.ui.graphics.Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = tint.copy(alpha = 0.08f))
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(10.dp, 14.dp)
+            modifier = Modifier.fillMaxWidth().padding(10.dp, 14.dp)
         ) {
-            Icon(icon, null, modifier = Modifier.size(22.dp), tint = tint)
-            Spacer(Modifier.height(4.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(tint.copy(alpha = 0.14f))
+            ) {
+                Icon(icon, null, modifier = Modifier.size(19.dp), tint = tint)
+            }
+            Spacer(Modifier.height(6.dp))
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (onClick != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "View →",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tint,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }

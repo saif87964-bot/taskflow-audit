@@ -23,8 +23,8 @@ android {
         applicationId = "com.taskflow.audit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
 
     // Name APKs by version + build time so installs are never mixed up:

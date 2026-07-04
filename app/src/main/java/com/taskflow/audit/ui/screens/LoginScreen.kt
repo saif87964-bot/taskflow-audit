@@ -165,10 +165,18 @@ fun LoginScreen(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "IMH ASSOCIATES",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 3.sp
+        )
         Text(
             "TIME TRACKING & ENGAGEMENT MANAGEMENT",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 2.sp
         )
 
