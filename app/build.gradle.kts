@@ -1,3 +1,5 @@
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Properties
 
 plugins {
@@ -21,8 +23,18 @@ android {
         applicationId = "com.taskflow.audit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
+    }
+
+    // Name APKs by version + build time so installs are never mixed up:
+    // e.g. TaskFlowAudit-v1.1.0-debug-0704-1345.apk
+    applicationVariants.all {
+        val stamp = SimpleDateFormat("MMdd-HHmm").format(Date())
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                "TaskFlowAudit-v${versionName}-${buildType.name}-$stamp.apk"
+        }
     }
 
     signingConfigs {
