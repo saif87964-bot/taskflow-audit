@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Certificate pinning for Firebase endpoints.
-  Pins are the SHA-256 of the SPKI (Subject Public Key Info) of Google's root CAs.
-  These cover all *.googleapis.com and *.firebaseio.com traffic.
-  Update pins when Google rotates their root CAs (rare, announced 90+ days ahead).
+  Blocks all cleartext (non-HTTPS) traffic. Standard system trust anchors
+  are used for TLS validation.
+
+  NOTE: Certificate pinning was deliberately removed. Google rotates the
+  certificates on *.googleapis.com across multiple roots (GTS R1–R4), so
+  pinning those domains intermittently bricks Firebase Auth/Firestore with
+  "Pin verification failed" depending on the network path. Google explicitly
+  advises against pinning their API endpoints.
 -->
 <network-security-config>
 
@@ -12,24 +16,5 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-
-    <!-- Firebase Auth + Firestore endpoints -->
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">googleapis.com</domain>
-        <domain includeSubdomains="true">firebaseio.com</domain>
-        <domain includeSubdomains="true">firebaseapp.com</domain>
-        <domain includeSubdomains="true">firebase.google.com</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-        <pin-set expiration="2026-12-31">
-            <!-- Google Trust Services GTS Root R1 -->
-            <pin digest="SHA-256">hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=</pin>
-            <!-- Google Trust Services GTS Root R2 (backup) -->
-            <pin digest="SHA-256">Vfd95BwDeSZo+Van7GT2Lu2if3QaFQHXWSwEeEpnB3E=</pin>
-            <!-- ISRG Root X1 (Let's Encrypt, used by some Firebase services) -->
-            <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
-        </pin-set>
-    </domain-config>
 
 </network-security-config>
