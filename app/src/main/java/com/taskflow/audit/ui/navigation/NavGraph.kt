@@ -85,13 +85,16 @@ fun TaskFlowNavHost(
         ) { back ->
             val uid = back.arguments?.getString("uid") ?: return@composable
             val vm: StaffHomeViewModel = viewModel(factory = StaffHomeViewModel.Factory(uid))
+            // When pushed from the Admin Hub there is a previous entry — show a back arrow
+            val cameFromAdmin = navController.previousBackStackEntry != null
             StaffHomeScreen(
                 vm = vm,
                 onNavigateToTimesheet = { navController.navigate(Screen.MyTimesheet.createRoute(uid)) },
                 onNavigateToTasks     = { navController.navigate(Screen.Tasks.createRoute(uid, false)) },
                 onNavigateToLogbook   = { navController.navigate(Screen.Logbook.createRoute(uid, false)) },
                 onNavigateToSettings  = { navController.navigate(Screen.Settings.createRoute(false, uid)) },
-                onLogout = { doLogout() }
+                onLogout = { doLogout() },
+                onBack = if (cameFromAdmin) ({ navController.popBackStack() }) else null
             )
         }
 
@@ -143,6 +146,7 @@ fun TaskFlowNavHost(
                 onNavigateToTasks       = { navController.navigate(Screen.Tasks.createRoute(uid, true)) },
                 onNavigateToLogbook     = { navController.navigate(Screen.Logbook.createRoute(uid, true)) },
                 onNavigateToSettings    = { navController.navigate(Screen.Settings.createRoute(true, uid)) },
+                onNavigateToMyDay       = { navController.navigate(Screen.StaffHome.createRoute(uid)) },
                 onLogout = { doLogout() }
             )
         }

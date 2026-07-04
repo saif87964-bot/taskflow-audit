@@ -54,6 +54,7 @@ fun AdminDashboardScreen(
     onNavigateToTasks: () -> Unit,
     onNavigateToLogbook: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToMyDay: () -> Unit,
     onLogout: () -> Unit
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -159,6 +160,46 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+
+            // Admin's own check-in — admins track their time like everyone else
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToMyDay() },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.PlayCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "My Day",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "Check in, switch engagements & view my timesheet",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
 
             if (notLoggedAlerts.isNotEmpty()) {
                 item { AlertsBanner(messages = notLoggedAlerts) }

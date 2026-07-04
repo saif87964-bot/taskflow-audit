@@ -27,7 +27,8 @@ fun StaffHomeScreen(
     onNavigateToTasks: () -> Unit,
     onNavigateToLogbook: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showEngagementSheet by remember { mutableStateOf(false) }
@@ -66,16 +67,26 @@ fun StaffHomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("TaskFlow Audit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(if (onBack != null) "My Day" else "TaskFlow Audit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(today, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back to Admin Hub")
+                        }
                     }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
+                    // When opened from the Admin Hub, back handles the exit — no logout here
+                    if (onBack == null) {
+                        IconButton(onClick = onLogout) {
+                            Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
