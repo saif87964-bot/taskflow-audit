@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -339,8 +341,10 @@ private fun AddEngagementSheet(
 
     Column(
         modifier = Modifier
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .navigationBarsPadding()
+            .imePadding()
     ) {
         Text("Add Engagement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
@@ -434,8 +438,10 @@ private fun EditEngagementSheet(
 
     Column(
         modifier = Modifier
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .navigationBarsPadding()
+            .imePadding()
     ) {
         Text("Edit Engagement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))

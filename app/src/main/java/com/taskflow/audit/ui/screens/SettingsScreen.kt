@@ -5,12 +5,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -23,17 +23,12 @@ fun SettingsScreen(
     currentTheme: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit
 ) {
-    var checkInAlerts by remember { mutableStateOf(true) }
-    var endOfDayReminder by remember { mutableStateOf(true) }
-    var idleAlert by remember { mutableStateOf(false) }
-    var sheetsSync by remember { mutableStateOf(true) }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 }
             )
         }
@@ -64,7 +59,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("TaskFlow Audit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("TaskFlow Audit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text("Version 1.0.0 • Audit Edition", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                     }
                 }
@@ -100,65 +95,12 @@ fun SettingsScreen(
                 }
             }
 
-            // Notifications
-            SettingsSection(title = "NOTIFICATIONS") {
-                ToggleRow(
-                    icon = Icons.Default.Login,
-                    title = "Check-in Reminders",
-                    subtitle = "Morning nudge if not checked in by 8:30am",
-                    checked = checkInAlerts,
-                    onCheckedChange = { checkInAlerts = it }
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                ToggleRow(
-                    icon = Icons.Default.Nightlight,
-                    title = "End-of-day Reminder",
-                    subtitle = "Alert if still checked in after 6pm",
-                    checked = endOfDayReminder,
-                    onCheckedChange = { endOfDayReminder = it }
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                ToggleRow(
-                    icon = Icons.Default.Timer,
-                    title = "Idle Detection",
-                    subtitle = "Alert after 2h on same engagement without activity",
-                    checked = idleAlert,
-                    onCheckedChange = { idleAlert = it }
-                )
-            }
-
-            // Integrations
-            SettingsSection(title = "INTEGRATIONS") {
-                ToggleRow(
-                    icon = Icons.Default.TableChart,
-                    title = "Google Sheets Sync",
-                    subtitle = "Push daily summary to employee timesheets",
-                    checked = sheetsSync,
-                    onCheckedChange = { sheetsSync = it }
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Sync, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text("Manual Sync Now", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                            Text("Last synced: Today, 3:00 PM", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    TextButton(onClick = {}) { Text("Sync") }
-                }
-            }
-
             // About
             SettingsSection(title = "ABOUT") {
-                InfoRow(label = "Firm", value = "Your Audit Firm")
+                InfoRow(label = "Firm", value = "IMH Associates")
                 InfoRow(label = "Platform", value = "Android • Jetpack Compose")
-                InfoRow(label = "Database", value = "Local SQLite + Sheets Export")
+                InfoRow(label = "Backend", value = "Firebase Cloud")
+                InfoRow(label = "Support", value = "Contact your administrator")
             }
         }
     }
@@ -180,28 +122,6 @@ private fun SettingsSection(title: String, content: @Composable ColumnScope.() -
         ) {
             Column(modifier = Modifier.padding(16.dp), content = content)
         }
-    }
-}
-
-@Composable
-private fun ToggleRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

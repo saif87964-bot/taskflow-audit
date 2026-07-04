@@ -107,19 +107,28 @@ class TimesheetRepository(private val db: FirebaseFirestore = FirebaseFirestore.
         return doc.id
     }
 
+    /**
+     * Closes every active session for the staff member, computing elapsed
+     * minutes from each session's own startTime. Used as the check-out
+     * fallback and to clean up stale sessions before a new check-in.
+     */
+    suspend fun closeAllActiveSessions(staffId: String) {
+        val active = db.collection(Collections.TIME_SESSIONS)
+            .whereEqualTo("staffId", staffId)
+            .whereEqualTo("isActive", true)
+            .get().await()
+        for (docSnap in active.documents) {
+            val s = docSnap.toObject(TimeSessionDocument::class.java) ?: continue
+            val minutes = s.startTime?.let {
+                ((Timestamp.now().seconds - it.seconds) / 60).toInt().coerceAtLeast(0)
+            } ?: 0
+            checkOut(docSnap.id, minutes)
+        }
+    }
+
     private suspend fun closeAnyActiveSessions(staffId: String) {
         try {
-            val stale = db.collection(Collections.TIME_SESSIONS)
-                .whereEqualTo("staffId", staffId)
-                .whereEqualTo("isActive", true)
-                .get().await()
-            for (docSnap in stale.documents) {
-                val s = docSnap.toObject(TimeSessionDocument::class.java) ?: continue
-                val minutes = s.startTime?.let {
-                    ((Timestamp.now().seconds - it.seconds) / 60).toInt().coerceAtLeast(0)
-                } ?: 0
-                checkOut(docSnap.id, minutes)
-            }
+            closeAllActiveSessions(staffId)
         } catch (e: Exception) {
             Log.w("TimesheetRepo", "could not close stale active sessions", e)
         }

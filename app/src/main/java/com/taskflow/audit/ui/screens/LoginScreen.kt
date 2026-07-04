@@ -133,14 +133,21 @@ fun LoginScreen(
         if (pinEntry.isNotEmpty()) pinEntry = pinEntry.dropLast(1)
     }
 
+    // Surface (not raw background) so LocalContentColor follows the theme —
+    // otherwise headings render black even in dark mode
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(72.dp))
+        Spacer(Modifier.height(56.dp))
 
         // Brand icon
         Box(
@@ -284,6 +291,7 @@ fun LoginScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
     }
 }
 

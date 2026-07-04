@@ -136,10 +136,9 @@ private fun TaskDocCard(
                     onCheckedChange = { checked ->
                         onToggle(if (checked) "DONE" else "PENDING")
                     },
-                    modifier = Modifier.size(20.dp).padding(top = 2.dp),
                     colors = CheckboxDefaults.colors(checkedColor = CheckedInGreen)
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         task.title,
@@ -159,12 +158,19 @@ private fun TaskDocCard(
                     }
                 }
                 Spacer(Modifier.width(8.dp))
-                SuggestionChip(
-                    onClick = {},
-                    label = { Text(priorityLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = priorityColor) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = priorityColor.copy(alpha = 0.1f)),
-                    border = SuggestionChipDefaults.suggestionChipBorder(enabled = true, borderColor = priorityColor.copy(alpha = 0.3f))
-                )
+                // Non-interactive status pill — a chip here would look tappable
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = priorityColor.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        priorityLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = priorityColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
             Spacer(Modifier.height(10.dp))

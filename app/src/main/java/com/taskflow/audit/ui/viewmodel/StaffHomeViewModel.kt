@@ -86,13 +86,18 @@ class StaffHomeViewModel(private val staffUid: String) : ViewModel() {
     }
 
     fun checkOut() {
-        val sessionId = activeSessionId ?: return
         viewModelScope.launch {
             try {
-                val elapsed = _state.value.activeSession?.startTime?.let {
-                    ((System.currentTimeMillis() / 1000 - it.seconds) / 60).toInt()
-                } ?: 0
-                AppRepositories.timesheet.checkOut(sessionId, elapsed)
+                val sessionId = activeSessionId ?: _state.value.activeSession?.id
+                if (sessionId != null) {
+                    val elapsed = _state.value.activeSession?.startTime?.let {
+                        ((System.currentTimeMillis() / 1000 - it.seconds) / 60).toInt().coerceAtLeast(0)
+                    } ?: 0
+                    AppRepositories.timesheet.checkOut(sessionId, elapsed)
+                } else {
+                    // Local id lost (e.g. process restart) — close on the server instead
+                    AppRepositories.timesheet.closeAllActiveSessions(staffUid)
+                }
                 activeSessionId = null
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = "Check-out failed: ${e.message}")
@@ -103,19 +108,9 @@ class StaffHomeViewModel(private val staffUid: String) : ViewModel() {
     fun switchEngagement(newEngagementId: String) {
         viewModelScope.launch {
             try {
-                val currentId = activeSessionId
-                val elapsed = _state.value.activeSession?.startTime?.let {
-                    ((System.currentTimeMillis() / 1000 - it.seconds) / 60).toInt()
-                } ?: 0
-                if (currentId != null) {
-                    val newId = AppRepositories.timesheet.switchEngagement(
-                        currentId, staffUid, newEngagementId, elapsed
-                    )
-                    activeSessionId = newId
-                } else {
-                    val newId = AppRepositories.timesheet.checkIn(staffUid, newEngagementId)
-                    activeSessionId = newId
-                }
+                // checkIn() closes any active session first, so this is safe
+                // whether or not a session is currently running
+                activeSessionId = AppRepositories.timesheet.checkIn(staffUid, newEngagementId)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = "Switch failed: ${e.message}")
             }

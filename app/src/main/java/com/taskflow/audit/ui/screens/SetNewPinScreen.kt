@@ -125,14 +125,19 @@ fun SetNewPinScreen(
 
     val currentEntry = if (!isConfirmStep) firstPin else confirmPin
 
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(72.dp))
+        Spacer(Modifier.height(56.dp))
 
         // Brand icon
         Box(
@@ -209,6 +214,7 @@ fun SetNewPinScreen(
         } else {
             SetPinKeypad(onKey = onKeyPress, onDelete = onDelete)
         }
+    }
     }
 }
 
