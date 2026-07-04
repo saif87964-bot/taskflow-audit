@@ -2,6 +2,7 @@ package com.taskflow.audit.data.model
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
 
 // ─── Staff ──────────────────────────────────────────────────────────────────
@@ -13,7 +14,10 @@ data class StaffDocument(
     val role: String = "",
     val initials: String = "",
     val colorHex: String = "#1565C0",
-    val isAdmin: Boolean = false,
+    // @PropertyName needed: Kotlin "isXxx" booleans otherwise serialize as "xxx",
+    // silently mismatching the field name used in queries and the seed script
+    @get:PropertyName("isAdmin") @set:PropertyName("isAdmin")
+    var isAdmin: Boolean = false,
     val email: String = "",
     val pendingPinReset: Boolean = false
 )
@@ -28,7 +32,8 @@ data class EngagementDocument(
     val type: String = "AUDIT",
     val colorHex: String = "#00897B",
     val budgetHours: Int = 20,
-    val isActive: Boolean = true
+    @get:PropertyName("isActive") @set:PropertyName("isActive")
+    var isActive: Boolean = true
 )
 
 // ─── Time Session ───────────────────────────────────────────────────────────
@@ -40,7 +45,8 @@ data class TimeSessionDocument(
     @ServerTimestamp val startTime: Timestamp? = null,
     val endTime: Timestamp? = null,
     val durationMinutes: Int = 0,
-    val isActive: Boolean = true
+    @get:PropertyName("isActive") @set:PropertyName("isActive")
+    var isActive: Boolean = true
 )
 
 // ─── Task ────────────────────────────────────────────────────────────────────
