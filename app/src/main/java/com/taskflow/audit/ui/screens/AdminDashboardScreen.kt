@@ -84,7 +84,7 @@ fun AdminDashboardScreen(
     }
     LaunchedEffect(state.resetPinSuccess) {
         state.resetPinSuccess?.let {
-            snackbarHostState.showSnackbar("$it PIN reset to 1234")
+            snackbarHostState.showSnackbar("$it will be asked to set a new PIN at next login")
             vm.clearActionResult()
         }
     }
@@ -215,6 +215,7 @@ fun AdminDashboardScreen(
                 FirestoreStaffRow(
                     staff = staffDoc,
                     activeSession = activeSession,
+                    hasSessionToday = state.todaySessions.any { it.staffId == staffDoc.uid },
                     engagementName = engagementName,
                     onClick = { onNavigateToStaffDetail(staffDoc.uid) },
                     onEdit = { editingStaff = staffDoc },
@@ -231,6 +232,7 @@ fun AdminDashboardScreen(
 private fun FirestoreStaffRow(
     staff: StaffDocument,
     activeSession: TimeSessionDocument?,
+    hasSessionToday: Boolean,
     engagementName: String?,
     onClick: () -> Unit,
     onEdit: () -> Unit,
@@ -286,7 +288,11 @@ private fun FirestoreStaffRow(
                 )
             } else if (!isCheckedIn) {
                 Spacer(Modifier.height(4.dp))
-                Text("Not logged today", style = MaterialTheme.typography.labelSmall, color = WarningAmber)
+                if (hasSessionToday) {
+                    Text("Checked out", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text("Not logged today", style = MaterialTheme.typography.labelSmall, color = WarningAmber)
+                }
             }
         }
 
@@ -461,14 +467,14 @@ private fun AddStaffSheet(
     var selectedColor by remember { mutableStateOf(dashboardColorPresets[0]) }
     var roleExpanded by remember { mutableStateOf(false) }
 
-    // Auto-suggest shortId from first two letters of first name
+    // Auto-suggest shortId from initials — but stop once the admin edits it manually
+    var shortIdEdited by remember { mutableStateOf(false) }
     LaunchedEffect(fullName) {
-        val suggested = fullName.trim().split(" ")
-            .mapNotNull { it.firstOrNull()?.lowercaseChar() }
-            .take(2)
-            .joinToString("")
-        if (suggested.isNotEmpty()) {
-            shortId = suggested
+        if (!shortIdEdited) {
+            shortId = fullName.trim().split(" ")
+                .mapNotNull { it.firstOrNull()?.lowercaseChar() }
+                .take(2)
+                .joinToString("")
         }
     }
 
@@ -494,7 +500,7 @@ private fun AddStaffSheet(
 
         OutlinedTextField(
             value = shortId,
-            onValueChange = { if (it.length <= 3) shortId = it.lowercase() },
+            onValueChange = { if (it.length <= 3) { shortId = it.lowercase(); shortIdEdited = true } },
             label = { Text("Short ID (max 3 chars)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,

@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 
 data class AdminDashboardState(
     val staffList: List<StaffDocument> = emptyList(),
-    val activeSessions: List<TimeSessionDocument> = emptyList(),
+    val todaySessions: List<TimeSessionDocument> = emptyList(),
     val engagements: List<EngagementDocument> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null,
@@ -24,9 +24,14 @@ data class AdminDashboardState(
     val actionError: String? = null,
     val resetPinSuccess: String? = null
 ) {
+    /** Sessions currently running (staff checked in right now). */
+    val activeSessions: List<TimeSessionDocument> get() = todaySessions.filter { it.isActive }
+
     val checkedInCount: Int get() = activeSessions.map { it.staffId }.distinct().size
+
+    /** Staff with no session at all today — genuinely never logged in. */
     val notLoggedToday: List<StaffDocument> get() =
-        staffList.filter { s -> activeSessions.none { it.staffId == s.uid } &&
+        staffList.filter { s -> todaySessions.none { it.staffId == s.uid } &&
             s.shortId != "admin" }
 }
 
@@ -39,12 +44,12 @@ class AdminViewModel(private val adminUid: String) : ViewModel() {
         viewModelScope.launch {
             combine(
                 AppRepositories.staff.getAllStaffFlow(),
-                AppRepositories.timesheet.getActiveSessionsFlow(),
+                AppRepositories.timesheet.getTodayAllSessionsFlow(),
                 AppRepositories.engagements.getActiveEngagementsFlow()
             ) { staff, sessions, engs ->
                 _state.value = _state.value.copy(
                     staffList = staff,
-                    activeSessions = sessions,
+                    todaySessions = sessions,
                     engagements = engs,
                     isLoading = false
                 )
@@ -55,8 +60,17 @@ class AdminViewModel(private val adminUid: String) : ViewModel() {
     fun createStaff(shortId: String, fullName: String, role: String, colorHex: String, isAdmin: Boolean) {
         viewModelScope.launch {
             try {
-                val uid = AppRepositories.auth.createStaff(shortId, fullName, role, colorHex, isAdmin)
-                AppRepositories.staff.createStaffDoc(uid, shortId, fullName, role, colorHex, isAdmin)
+                val id = shortId.trim().lowercase()
+                if (AppRepositories.staff.getStaffByShortId(id) != null ||
+                    _state.value.staffList.any { it.shortId == id }
+                ) {
+                    _state.value = _state.value.copy(
+                        actionError = "Short ID '$id' is already taken. Choose another."
+                    )
+                    return@launch
+                }
+                val uid = AppRepositories.auth.createStaff(id, fullName, role, colorHex, isAdmin)
+                AppRepositories.staff.createStaffDoc(uid, id, fullName, role, colorHex, isAdmin)
                 _state.value = _state.value.copy(createStaffSuccess = true)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(actionError = "Failed to create staff: ${e.message}")

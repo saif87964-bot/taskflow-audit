@@ -1,9 +1,9 @@
 package com.taskflow.audit
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -18,7 +18,8 @@ import com.taskflow.audit.ui.navigation.TaskFlowNavHost
 import com.taskflow.audit.ui.screens.ThemeMode
 import com.taskflow.audit.ui.theme.TaskFlowAuditTheme
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity is required for androidx.biometric's BiometricPrompt
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -20,6 +20,7 @@ object EncryptedPrefs {
     const val KEY_STAFF_SHORT_ID = "staff_short_id"
     const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
     const val KEY_LAST_AUTH_TIMESTAMP = "last_auth_ts"
+    const val KEY_STAFF_DIRECTORY = "staff_directory"
 
     private lateinit var prefs: SharedPreferences
 

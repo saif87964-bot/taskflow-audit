@@ -5,10 +5,22 @@ import androidx.lifecycle.viewModelScope
 import com.taskflow.audit.data.AppRepositories
 import com.taskflow.audit.data.repository.AuthResult
 import com.taskflow.audit.data.repository.StaffRepository
+import com.taskflow.audit.security.EncryptedPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** Lightweight staff entry shown on the login screen (cached locally). */
+data class DirectoryEntry(
+    val shortId: String,
+    val name: String,
+    val role: String,
+    val colorHex: String
+)
 
 data class LoginUiState(
     val isLoading: Boolean = false,
@@ -20,7 +32,8 @@ data class LoginUiState(
     val savedShortId: String? = null,
     val offerBiometricEnroll: Boolean = false,
     val pendingUid: String? = null,
-    val pendingIsAdmin: Boolean = false
+    val pendingIsAdmin: Boolean = false,
+    val directory: List<DirectoryEntry> = emptyList()
 )
 
 class LoginViewModel : ViewModel() {
@@ -36,6 +49,47 @@ class LoginViewModel : ViewModel() {
                 savedShortId = auth.getSavedShortId()
             )
         }
+        _uiState.value = _uiState.value.copy(directory = loadCachedDirectory())
+    }
+
+    private fun loadCachedDirectory(): List<DirectoryEntry> = try {
+        val json = EncryptedPrefs.getString(EncryptedPrefs.KEY_STAFF_DIRECTORY) ?: ""
+        if (json.isEmpty()) emptyList() else {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                DirectoryEntry(
+                    shortId = o.getString("shortId"),
+                    name = o.getString("name"),
+                    role = o.getString("role"),
+                    colorHex = o.getString("colorHex")
+                )
+            }
+        }
+    } catch (_: Exception) { emptyList() }
+
+    /**
+     * Fetches the current staff list and caches it locally so the login
+     * screen stays in sync when staff are added or edited in-app.
+     * Best-effort: failures never block login.
+     */
+    private suspend fun refreshDirectoryCache() {
+        try {
+            withTimeoutOrNull(4_000) {
+                val staff = StaffRepository().getAllStaffOnce()
+                if (staff.isEmpty()) return@withTimeoutOrNull
+                val arr = JSONArray()
+                staff.sortedBy { it.fullName }.forEach { s ->
+                    arr.put(JSONObject().apply {
+                        put("shortId", s.shortId)
+                        put("name", s.fullName)
+                        put("role", s.role)
+                        put("colorHex", s.colorHex)
+                    })
+                }
+                EncryptedPrefs.putString(EncryptedPrefs.KEY_STAFF_DIRECTORY, arr.toString())
+            }
+        } catch (_: Exception) { /* non-fatal */ }
     }
 
     fun signIn(shortId: String, pin: String) {
@@ -44,6 +98,9 @@ class LoginViewModel : ViewModel() {
             when (val result = AppRepositories.auth.signIn(shortId, pin)) {
                 is AuthResult.Success -> {
                     val uid = result.user.uid
+
+                    // Refresh the login staff directory while we're authenticated
+                    refreshDirectoryCache()
 
                     // Check if this user has a pending PIN reset
                     val staffRepo = StaffRepository()

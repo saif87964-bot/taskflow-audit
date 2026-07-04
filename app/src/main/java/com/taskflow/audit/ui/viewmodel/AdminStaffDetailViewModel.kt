@@ -21,7 +21,11 @@ data class StaffDetailState(
     val pinResetSuccess: Boolean = false,
     val error: String? = null
 ) {
-    val hoursToday: Double get() = todaySessions.sumOf { it.durationMinutes } / 60.0
+    val hoursToday: Double get() =
+        todaySessions.filter { !it.isActive }.sumOf { it.durationMinutes } / 60.0 +
+        (todaySessions.firstOrNull { it.isActive }?.startTime?.let { start ->
+            ((System.currentTimeMillis() / 1000 - start.seconds).coerceAtLeast(0)) / 3600.0
+        } ?: 0.0)
     val isCheckedIn: Boolean get() = todaySessions.any { it.isActive }
     val currentEngagementId: String? get() = todaySessions.firstOrNull { it.isActive }?.engagementId
 }

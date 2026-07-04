@@ -82,7 +82,8 @@ class AuthRepository(private val auth: FirebaseAuth) {
      * Updates the current user's password (used during forced PIN reset flow).
      */
     suspend fun updateCurrentUserPin(newPin: String) {
-        auth.currentUser?.updatePassword(newPin.padEnd(6, '0'))?.await()
+        val user = auth.currentUser ?: throw Exception("Session expired. Please log in again.")
+        user.updatePassword(newPin.padEnd(6, '0')).await()
     }
 
     fun enableBiometric() = EncryptedPrefs.putBoolean(EncryptedPrefs.KEY_BIOMETRIC_ENABLED, true)
@@ -93,16 +94,18 @@ class AuthRepository(private val auth: FirebaseAuth) {
 
     private fun buildEmail(shortId: String) = "${shortId.lowercase()}@taskflow.audit"
 
-    private fun mapFirebaseError(message: String?): String = when {
-        message == null -> "Authentication failed"
-        message.contains("password") || message.contains("credential") ->
-            "Incorrect PIN. Please try again."
-        message.contains("user") && message.contains("not found") ->
-            "Staff member not found. Contact your administrator."
-        message.contains("network") || message.contains("timeout") ->
-            "No connection. Check your internet and try again."
-        message.contains("too many") || message.contains("blocked") ->
-            "Too many failed attempts. Please wait before trying again."
-        else -> "Authentication failed. Please try again."
+    private fun mapFirebaseError(message: String?): String {
+        val m = message?.lowercase() ?: return "Authentication failed"
+        return when {
+            m.contains("password") || m.contains("credential") || m.contains("invalid login") ->
+                "Incorrect PIN. Please try again."
+            m.contains("user") && m.contains("not found") ->
+                "Staff member not found. Contact your administrator."
+            m.contains("network") || m.contains("timeout") || m.contains("failed to connect") || m.contains("unable to resolve") || m.contains("googleapis") ->
+                "No connection. Check your internet and try again."
+            m.contains("too many") || m.contains("blocked") ->
+                "Too many failed attempts. Please wait before trying again."
+            else -> "Error: ${message?.take(120)}"
+        }
     }
 }

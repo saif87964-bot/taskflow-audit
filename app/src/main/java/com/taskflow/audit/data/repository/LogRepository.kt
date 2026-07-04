@@ -11,14 +11,22 @@ import kotlinx.coroutines.tasks.await
 
 class LogRepository(private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
 
+    /**
+     * Staff's own log entries. Sorted client-side so the equality-filter
+     * query needs no composite Firestore index.
+     */
     fun getStaffLogFlow(staffId: String): Flow<List<LogEntryDocument>> = callbackFlow {
         val listener = db.collection(Collections.LOG_ENTRIES)
             .whereEqualTo("staffId", staffId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    android.util.Log.w("LogRepo", "staff log listener error", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
                 val entries = snapshot?.documents?.mapNotNull {
                     it.toObject(LogEntryDocument::class.java)
-                } ?: emptyList()
+                }?.sortedByDescending { it.createdAt?.seconds ?: Long.MAX_VALUE } ?: emptyList()
                 trySend(entries)
             }
         awaitClose { listener.remove() }
@@ -27,7 +35,12 @@ class LogRepository(private val db: FirebaseFirestore = FirebaseFirestore.getIns
     fun getAllLogEntriesFlow(): Flow<List<LogEntryDocument>> = callbackFlow {
         val listener = db.collection(Collections.LOG_ENTRIES)
             .orderBy("createdAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    android.util.Log.w("LogRepo", "all logs listener error", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
                 val entries = snapshot?.documents?.mapNotNull {
                     it.toObject(LogEntryDocument::class.java)
                 } ?: emptyList()

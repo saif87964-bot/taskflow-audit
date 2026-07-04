@@ -24,8 +24,8 @@ data class StaffHomeState(
     val error: String? = null
 ) {
     val hoursToday: Double get() = todaySessions.sumOf { it.durationMinutes } / 60.0 +
-        (activeSession?.let {
-            (System.currentTimeMillis() / 1000 - (it.startTime?.seconds ?: 0)) / 3600.0
+        (activeSession?.startTime?.let { start ->
+            ((System.currentTimeMillis() / 1000 - start.seconds).coerceAtLeast(0)) / 3600.0
         } ?: 0.0)
 
     val isCheckedIn: Boolean get() = activeSession != null

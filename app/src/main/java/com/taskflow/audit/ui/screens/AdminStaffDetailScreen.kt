@@ -54,8 +54,8 @@ fun AdminStaffDetailScreen(
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
-            title = { Text("Reset PIN to 1234?") },
-            text = { Text("The staff member will be prompted to set a new PIN on their next login.") },
+            title = { Text("Require PIN change?") },
+            text = { Text("The staff member will be asked to set a new PIN right after their next login (they sign in with their current PIN one last time).") },
             confirmButton = {
                 Button(onClick = {
                     showResetDialog = false

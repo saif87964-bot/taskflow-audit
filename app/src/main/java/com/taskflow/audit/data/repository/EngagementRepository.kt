@@ -14,7 +14,8 @@ class EngagementRepository(private val db: FirebaseFirestore = FirebaseFirestore
     fun getActiveEngagementsFlow(): Flow<List<EngagementDocument>> = callbackFlow {
         val listener = db.collection(Collections.ENGAGEMENTS)
             .whereEqualTo("isActive", true)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) android.util.Log.w("EngagementRepo", "engagements listener error", error)
                 val engagements = snapshot?.documents?.mapNotNull {
                     it.toObject(EngagementDocument::class.java)
                 } ?: emptyList()

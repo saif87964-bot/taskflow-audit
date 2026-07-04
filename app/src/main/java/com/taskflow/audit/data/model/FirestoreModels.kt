@@ -7,7 +7,7 @@ import com.google.firebase.firestore.ServerTimestamp
 // ─── Staff ──────────────────────────────────────────────────────────────────
 
 data class StaffDocument(
-    @DocumentId val uid: String = "",
+    val uid: String = "",
     val shortId: String = "",
     val fullName: String = "",
     val role: String = "",
@@ -21,7 +21,7 @@ data class StaffDocument(
 // ─── Engagement ─────────────────────────────────────────────────────────────
 
 data class EngagementDocument(
-    @DocumentId val id: String = "",
+    val id: String = "",
     val code: String = "",
     val name: String = "",
     val clientName: String = "",

@@ -61,7 +61,9 @@ async function seed() {
       let user;
       try {
         user = await auth.getUserByEmail(email);
-        console.log(`  ↩  ${s.fullName} already exists (${user.uid})`);
+        // Always update password to ensure it matches DEFAULT_PIN
+        await auth.updateUser(user.uid, { password: DEFAULT_PIN });
+        console.log(`  ↩  ${s.fullName} already exists — password updated (${user.uid})`);
       } catch {
         user = await auth.createUser({ email, password: DEFAULT_PIN, displayName: s.fullName });
         console.log(`  ✓  Created auth user: ${s.fullName} (${user.uid})`);

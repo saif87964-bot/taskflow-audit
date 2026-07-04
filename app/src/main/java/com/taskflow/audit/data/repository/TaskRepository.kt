@@ -15,7 +15,8 @@ class TaskRepository(private val db: FirebaseFirestore = FirebaseFirestore.getIn
     fun getTasksForStaffFlow(staffId: String): Flow<List<TaskDocument>> = callbackFlow {
         val listener = db.collection(Collections.TASKS)
             .whereEqualTo("assigneeId", staffId)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) android.util.Log.w("TaskRepo", "staff tasks listener error", error)
                 val tasks = snapshot?.documents?.mapNotNull {
                     it.toObject(TaskDocument::class.java)
                 } ?: emptyList()
@@ -27,7 +28,8 @@ class TaskRepository(private val db: FirebaseFirestore = FirebaseFirestore.getIn
     /** All tasks — admin view. */
     fun getAllTasksFlow(): Flow<List<TaskDocument>> = callbackFlow {
         val listener = db.collection(Collections.TASKS)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) android.util.Log.w("TaskRepo", "all tasks listener error", error)
                 val tasks = snapshot?.documents?.mapNotNull {
                     it.toObject(TaskDocument::class.java)
                 } ?: emptyList()

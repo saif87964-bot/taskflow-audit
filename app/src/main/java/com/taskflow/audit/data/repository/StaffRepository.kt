@@ -10,11 +10,17 @@ import kotlinx.coroutines.tasks.await
 
 class StaffRepository(private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
 
+    /** One-shot fetch of all staff — used to refresh the login directory cache. */
+    suspend fun getAllStaffOnce(): List<StaffDocument> =
+        db.collection(Collections.STAFF).get().await()
+            .documents.mapNotNull { it.toObject(StaffDocument::class.java) }
+
     /** Real-time stream of all staff — used by Admin Dashboard. */
     fun getAllStaffFlow(): Flow<List<StaffDocument>> = callbackFlow {
         val listener = db.collection(Collections.STAFF)
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) {
+                    android.util.Log.w("StaffRepo", "staff listener error", error)
                     trySend(emptyList())
                     return@addSnapshotListener
                 }

@@ -26,22 +26,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.taskflow.audit.data.AppRepositories
 import com.taskflow.audit.security.BiometricHelper
 import com.taskflow.audit.security.BiometricResult
+import com.taskflow.audit.ui.viewmodel.DirectoryEntry
 import com.taskflow.audit.ui.viewmodel.LoginViewModel
 
-private data class StaffEntry(
-    val shortId: String,
-    val name: String,
-    val role: String,
-    val colorHex: Long
+// Fallback shown only before the first successful login caches the live directory
+private val fallbackStaffList = listOf(
+    DirectoryEntry("im", "Imtiaz M", "Senior Auditor", "#1565C0"),
+    DirectoryEntry("kh", "Khalid H", "Audit Manager",  "#00695C"),
+    DirectoryEntry("av", "Anita V",  "Auditor",         "#6A1B9A"),
+    DirectoryEntry("an", "Amina N",  "Tax Consultant",  "#E65100"),
+    DirectoryEntry("jp", "James P",  "Partner",         "#37474F"),
 )
 
-private val staffList = listOf(
-    StaffEntry("im", "Imtiaz M",  "Senior Auditor", 0xFF1565C0),
-    StaffEntry("kh", "Khalid H",  "Audit Manager",  0xFF00695C),
-    StaffEntry("av", "Anita V",   "Auditor",         0xFF6A1B9A),
-    StaffEntry("an", "Amina N",   "Tax Consultant",  0xFFE65100),
-    StaffEntry("jp", "James P",   "Partner",         0xFF37474F),
-)
+private fun parseColor(hex: String): Color = try {
+    Color(android.graphics.Color.parseColor(hex))
+} catch (_: Exception) { Color(0xFF1565C0) }
 
 @Composable
 fun LoginScreen(
@@ -105,10 +104,17 @@ fun LoginScreen(
         }
     }
 
-    var selectedStaff by remember { mutableStateOf<StaffEntry?>(null) }
+    val staffList = state.directory.ifEmpty { fallbackStaffList }
+
+    var selectedStaff by remember { mutableStateOf<DirectoryEntry?>(null) }
     var pinEntry by remember { mutableStateOf("") }
 
-    val onAvatarClick = { s: StaffEntry ->
+    // Clear the PIN dots after a failed attempt so the keypad is usable again
+    LaunchedEffect(state.error) {
+        if (state.error != null) pinEntry = ""
+    }
+
+    val onAvatarClick = { s: DirectoryEntry ->
         selectedStaff = s
         pinEntry = ""
         vm.clearError()
@@ -168,10 +174,12 @@ fun LoginScreen(
         )
         Spacer(Modifier.height(14.dp))
 
-        // Staff avatars
-        Row(
+        // Staff avatars — wraps onto extra rows when the team grows
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             staffList.forEach { s ->
                 val isSelected = selectedStaff?.shortId == s.shortId
@@ -183,7 +191,7 @@ fun LoginScreen(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(CircleShape)
-                            .background(Color(s.colorHex).copy(alpha = if (isSelected) 1f else 0.35f))
+                            .background(parseColor(s.colorHex).copy(alpha = if (isSelected) 1f else 0.35f))
                             .then(
                                 if (isSelected)
                                     Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)

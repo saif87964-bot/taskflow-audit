@@ -4,7 +4,7 @@
 local.properties
 /.idea
 .DS_Store
-/build
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -17,6 +17,10 @@ google-services.json
 *.jks
 *.keystore
 
-# Firebase Admin SDK service account key
+# Firebase Admin SDK service account key — NEVER commit
 *serviceAccountKey*.json
+*service-account*.json
 scripts/node_modules/
+node_modules/
+firebase-debug.log
+*.log
